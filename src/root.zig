@@ -186,15 +186,43 @@ pub const HUID = struct {
         // TODO: This is a bit dumb
         return HUID.initid(self.unix_time + 1, self.allocator);
     }
-    // Add seconds to the HUID, returning a new HUID. The old HUID is deinitialized.
+    /// Add seconds to the HUID, returning a new HUID. The old HUID is deinitialized.
     pub fn add(self: HUID, seconds: i64) !HUID {
         defer self.deinit();
         return HUID.initid(self.unix_time + seconds, self.allocator);
     }
-    // Subtract seconds from the HUID, returning a new HUID. The old HUID is deinitialized.
+    /// Subtract seconds from the HUID, returning a new HUID. The old HUID is deinitialized.
     pub fn sub(self: HUID, seconds: i64) !HUID {
         defer self.deinit();
         return HUID.initid(self.unix_time - seconds, self.allocator);
+    }
+    /// Get the millisecond timestamp of the HUID.
+    ///
+    /// To get the second time, use the unix_time field directly.
+    pub fn asMilliTimestamp(self: HUID) i64 {
+        return self.unix_time * 1000;
+    }
+    /// Detect all HUIDs in the given haystack of byte slices.
+    ///
+    /// Need to free the array and all the HUIDs in it after use.
+    pub fn detect(haystack: []const []const u8, allocator: std.mem.Allocator) ![]HUID {
+        var arrlst = try std.ArrayList(HUID).initCapacity(allocator, 24);
+        for (haystack) |item| {
+            // Search each position for a valid HUID
+            const len = item.len;
+            var i: usize = 0;
+            while (i + 15 <= len) : (i += 1) {
+                const potential_huid = item[i .. i + 15];
+                _ = HUID.parse(potential_huid) catch {
+                    // Not a valid huid, continue
+                    continue;
+                };
+                const huid = try HUID.initstr(potential_huid, allocator);
+                try arrlst.append(allocator, huid);
+                i += 15; // Move past this huid
+            }
+        }
+        return arrlst.toOwnedSlice(allocator);
     }
 };
 
@@ -283,4 +311,35 @@ test "HUID Add/Sub" {
     const subbed_huid = try added_huid.sub(3600);
     defer subbed_huid.deinit();
     try std.testing.expectEqual(huid.unix_time, subbed_huid.unix_time);
+}
+test "HUID asMilliTimestamp" {
+    const allocator = std.testing.allocator;
+    const huid = try HUID.initid(1625072400, allocator);
+    defer huid.deinit();
+    try std.testing.expectEqual(1625072400000, huid.asMilliTimestamp());
+}
+test "HUID Detect" {
+    const allocator = std.testing.allocator;
+    const haystack = [_][]const u8{
+        "No HUID here",
+        "Here is one: 20210630-170000 in the text",
+        "Multiple HUIDs: 20210701-120000 and 20210702-130000 end",
+    };
+    const huids = try HUID.detect(&haystack, allocator);
+    defer allocator.free(huids);
+    defer for (huids) |huid| huid.deinit();
+    try std.testing.expectEqual(3, huids.len);
+    try std.testing.expectEqual(1625072400, huids[0].unix_time);
+    try std.testing.expectEqual(1625140800, huids[1].unix_time);
+    try std.testing.expectEqual(1625230800, huids[2].unix_time);
+}
+test "HUID Detect No HUIDs" {
+    const allocator = std.testing.allocator;
+    const haystack = [_][]const u8{
+        "No HUID here",
+        "Still no HUID",
+    };
+    const huids = try HUID.detect(&haystack, allocator);
+    defer allocator.free(huids);
+    try std.testing.expectEqual(0, huids.len);
 }
