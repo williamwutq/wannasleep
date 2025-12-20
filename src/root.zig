@@ -10,13 +10,17 @@ const std = @import("std");
 // todo edit
 // todo defer
 
-/// HUIDs
+/// HUIDs: Human Readable Unique Identifiers
 /// See: https://www.youtube.com/watch?v=QH6KOEVnSZA
+///
+/// The unix time is the time in seconds, and the id string is the string representation of the huid.
 pub const HUID = struct {
     id_str: []const u8,
     unix_time: i64,
     allocator: std.mem.Allocator,
     /// Initialize a new HUID from the given unix time.
+    ///
+    /// Note: to obtain the unix time, use std.time.milliTimestamp() / 1000
     pub fn initid(
         unix_time: i64,
         alloc: std.mem.Allocator,
@@ -190,6 +194,8 @@ test "Test invalid huid" {
         "20210630-176000", // invalid minute
         "20210630-170060", // invalid second
         "2021A630-170000", // invalid character
+        "20210630_170000", // invalid separator
+        "2021-0630170000", // wrong format
     };
     for (invalid_ids) |id_str| {
         const result = HUID.initstr(id_str, allocator);
