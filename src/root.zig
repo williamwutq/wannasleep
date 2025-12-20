@@ -168,3 +168,31 @@ test "Test huid" {
     defer parsed_huid.deinit();
     try std.testing.expectEqual(huid.unix_time, parsed_huid.unix_time);
 }
+
+test "Test huid now" {
+    const allocator = std.testing.allocator;
+    const now = @divFloor(std.time.milliTimestamp(), 1000);
+    const huid = try HUID.initid(now, allocator);
+    defer huid.deinit();
+    const parsed_huid = try HUID.initstr(huid.id_str, allocator);
+    defer parsed_huid.deinit();
+    try std.testing.expectEqual(huid.unix_time, parsed_huid.unix_time);
+}
+
+test "Test invalid huid" {
+    const allocator = std.testing.allocator;
+    const invalid_ids = [_][]const u8{
+        "20210630-17000", // too short
+        "20210630-1700000", // too long
+        "20211330-170000", // invalid month
+        "20210631-170000", // invalid day
+        "20210630-240000", // invalid hour
+        "20210630-176000", // invalid minute
+        "20210630-170060", // invalid second
+        "2021A630-170000", // invalid character
+    };
+    for (invalid_ids) |id_str| {
+        const result = HUID.initstr(id_str, allocator);
+        try std.testing.expect(result == error.InvalidHUIDString);
+    }
+}
