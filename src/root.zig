@@ -728,7 +728,6 @@ pub fn readEntireCSVAsTODOs(
     path: ?[]const u8,
 ) !std.ArrayList(TODO) {
     const actual_path = if (path) |p| p else "main.csv";
-    var todo_list = try std.ArrayList(TODO).initCapacity(allocator, 12);
     const cwd = std.fs.cwd();
     var todo_dir = try cwd.openDir(".todo", .{});
     defer todo_dir.close();
@@ -739,6 +738,7 @@ pub fn readEntireCSVAsTODOs(
     const big_string = try main_todo_file.readToEndAlloc(allocator, 8192);
     defer allocator.free(big_string);
     var lines = std.mem.splitAny(u8, big_string, "\n");
+    var todo_list = try std.ArrayList(TODO).initCapacity(allocator, 12);
     while (true) {
         const line = lines.next() orelse break;
         if (line.len == 0) continue; // Skip empty lines
@@ -884,7 +884,7 @@ pub fn listRun(
     show_deadline: bool,
 ) !void {
     var todo_list = readEntireCSVAsTODOs(allocator, null) catch {
-        try bufferedPrint("Error: Failed to read todo list.\n");
+        try bufferedPrint("Error: Failed to read todo list. Did you run 'todo init'?\n");
         return listHelp();
     };
     defer todo_list.deinit(allocator);
