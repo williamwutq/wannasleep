@@ -182,6 +182,71 @@ pub const TODO = struct {
             .deadline = self.deadline,
         };
     }
+    pub fn changeDeadlineTransferOwnerships(self: TODO, new_deadline: ?HUID) TODO {
+        if (self.deadline) |old_deadline| {
+            old_deadline.deinit();
+        }
+        return TODO{
+            .completed = self.completed,
+            .canceled = self.canceled,
+            .description = self.description,
+            .tags = self.tags,
+            .allocator = self.allocator,
+            .huid = self.huid,
+            .deadline = new_deadline,
+        };
+    }
+    pub fn changeDescriptionTransferOwnerships(self: TODO, new_description: []const u8) !TODO {
+        const new_description_copy = try self.allocator.dupe(u8, new_description);
+        self.allocator.free(self.description);
+        return TODO{
+            .completed = self.completed,
+            .canceled = self.canceled,
+            .description = new_description_copy,
+            .tags = self.tags,
+            .allocator = self.allocator,
+            .huid = self.huid,
+            .deadline = self.deadline,
+        };
+    }
+    pub fn changeTagsTransferOwnerships(self: TODO, new_tags: []const []const u8) !TODO {
+        var tag_list = try std.ArrayList([]const u8).initCapacity(self.allocator, new_tags.len);
+        for (new_tags) |tag| {
+            const dup_tag = try self.allocator.dupe(u8, tag);
+            try tag_list.append(self.allocator, dup_tag);
+        }
+        const all_tags = try tag_list.toOwnedSlice(self.allocator);
+        for (self.tags) |tag| self.allocator.free(tag);
+        self.allocator.free(self.tags);
+        return TODO{
+            .completed = self.completed,
+            .canceled = self.canceled,
+            .description = self.description,
+            .tags = all_tags,
+            .allocator = self.allocator,
+            .huid = self.huid,
+            .deadline = self.deadline,
+        };
+    }
+    pub fn addTagTransferOwnerships(self: TODO, new_tag: []const u8) !TODO {
+        const dup_tag = try self.allocator.dupe(u8, new_tag);
+        var tag_list = try std.ArrayList([]const u8).initCapacity(self.allocator, self.tags.len + 1);
+        for (self.tags) |tag| {
+            try tag_list.append(self.allocator, tag);
+        }
+        try tag_list.append(self.allocator, dup_tag);
+        const all_tags = try tag_list.toOwnedSlice(self.allocator);
+        self.allocator.free(self.tags);
+        return TODO{
+            .completed = self.completed,
+            .canceled = self.canceled,
+            .description = self.description,
+            .tags = all_tags,
+            .allocator = self.allocator,
+            .huid = self.huid,
+            .deadline = self.deadline,
+        };
+    }
     /// Serialize the "todo" item into a CSV row.
     /// Reverse of fromRow().
     ///
@@ -270,6 +335,31 @@ pub const TODO = struct {
             dl.deinit();
         }
         self.allocator.free(self.description);
+    }
+    pub fn matchesTag(self: TODO, tag: []const u8) bool {
+        for (self.tags) |t| {
+            if (std.mem.eql(u8, t, tag)) {
+                return true;
+            }
+        }
+        return false;
+    }
+    pub fn matchesTagInsensitive(self: TODO, tag: []const u8) bool {
+        for (self.tags) |t| {
+            if (std.ascii.eqlIgnoreCase(t, tag)) {
+                return true;
+            }
+        }
+        return false;
+    }
+    pub fn hasDeadline(self: TODO) bool {
+        return self.deadline != null;
+    }
+    pub fn matchesDescription(self: TODO, substr: []const u8) bool {
+        return std.mem.indexOf(u8, self.description, substr) != null;
+    }
+    pub fn matchesDescriptionInsensitive(self: TODO, substr: []const u8) bool {
+        return std.ascii.indexOfIgnoreCase(self.description, substr) != null;
     }
 };
 
@@ -384,6 +474,30 @@ test "TODO quotes inside quotes" {
     const row = "20210630-170000,o,,\"Finish the \\\"report\\\"\",work";
     const result = TODO.fromRow(row, allocator);
     try std.testing.expect(result == Errors.InvalidTODOFormat);
+}
+
+test "TODO matches tags and description" {
+    const allocator = std.testing.allocator;
+    const huid = try HUID.initid(1625072400, allocator);
+    const tags = [_][]const u8{ "work", "urgent" };
+    const todo = try TODO.init("Finish the report", &tags, huid, null);
+    defer todo.deinit();
+    try std.testing.expect(todo.matchesTag("work"));
+    try std.testing.expect(!todo.matchesTag("personal"));
+    try std.testing.expect(todo.matchesDescription("the rep"));
+    try std.testing.expect(!todo.matchesDescription("not found"));
+}
+
+test "TODO matches tags and description insensitive" {
+    const allocator = std.testing.allocator;
+    const huid = try HUID.initid(1625072400, allocator);
+    const tags = [_][]const u8{ "Work", "Urgent" };
+    const todo = try TODO.init("Finish the Report", &tags, huid, null);
+    defer todo.deinit();
+    try std.testing.expect(todo.matchesTagInsensitive("work"));
+    try std.testing.expect(!todo.matchesTagInsensitive("personal"));
+    try std.testing.expect(todo.matchesDescriptionInsensitive("the rep"));
+    try std.testing.expect(!todo.matchesDescriptionInsensitive("not found"));
 }
 
 /// HUIDs: Human Readable Unique Identifiers
