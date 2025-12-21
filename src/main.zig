@@ -19,7 +19,7 @@ pub fn main() !void {
         try wannasleep.help();
         return;
     };
-    if (std.mem.eql(u8, first, "help")) {
+    if (std.mem.eql(u8, first, "help") or std.mem.eql(u8, first, "--help") or std.mem.eql(u8, first, "-h")) {
         const second = it.next() orelse {
             try wannasleep.help();
             return;
@@ -33,7 +33,7 @@ pub fn main() !void {
         } else {
             try wannasleep.help();
         }
-    } else if (std.mem.eql(u8, first, "version")) {
+    } else if (std.mem.eql(u8, first, "version") or std.mem.eql(u8, first, "--version") or std.mem.eql(u8, first, "-v")) {
         const second = it.next() orelse {
             try wannasleep.version();
             return;
@@ -43,7 +43,9 @@ pub fn main() !void {
         } else {
             try wannasleep.version();
         }
-    } else if (std.mem.eql(u8, first, "huid")) {
+    } else if (std.mem.eql(u8, first, "-vh") or std.mem.eql(u8, first, "-hv")) {
+        try wannasleep.versionHelp();
+    } else if (std.mem.eql(u8, first, "huid") or std.mem.eql(u8, first, "--huid") or std.mem.eql(u8, first, "-u")) {
         const second = it.next() orelse {
             try wannasleep.huidRun(allocator);
             return;
