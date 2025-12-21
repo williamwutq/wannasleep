@@ -143,6 +143,43 @@ pub fn main() !void {
                     show_deadline = true;
                 } else if (std.mem.eql(u8, second, "--all") or std.mem.eql(u8, second, "-a")) {
                     print_inactive = true;
+                } else if ((second.len > 2 or second.len <= 6) and second[0] == '-') {
+                    var seen = [_]bool{false} ** 5;
+                    var truth_count: usize = 0;
+                    for (second[1..]) |c| {
+                        switch (c) {
+                            'u' => if (seen[0]) break else {
+                                truth_count += 1;
+                                seen[0] = true;
+                            },
+                            's' => if (seen[1]) break else {
+                                truth_count += 1;
+                                seen[1] = true;
+                            },
+                            't' => if (seen[2]) break else {
+                                truth_count += 1;
+                                seen[2] = true;
+                            },
+                            'd' => if (seen[3]) break else {
+                                truth_count += 1;
+                                seen[3] = true;
+                            },
+                            'a' => if (seen[4]) break else {
+                                truth_count += 1;
+                                seen[4] = true;
+                            },
+                            else => break,
+                        }
+                    }
+                    if (truth_count != second.len - 1) {
+                        try wannasleep.bufferedPrintf("Error: Unknown flag {s} provided to 'list' command.\n", .{second});
+                        return wannasleep.listHelp();
+                    }
+                    if (seen[0]) show_huid = true;
+                    if (seen[1]) show_status = true;
+                    if (seen[2]) show_tags = true;
+                    if (seen[3]) show_deadline = true;
+                    if (seen[4]) print_inactive = true;
                 } else {
                     try wannasleep.bufferedPrintf("Error: Unknown flag {s} provided to 'list' command.\n", .{second});
                     return wannasleep.listHelp();
@@ -194,7 +231,7 @@ pub fn main() !void {
         if (std.mem.eql(u8, second, "--help") or std.mem.eql(u8, second, "-h")) {
             try wannasleep.remindHelp();
         } else {
-            // Parse flags: --show-status, --show-huid, --show-tags, --show-deadline, --print-inactive
+            // Parse flags: --show-huid, --show-tags, --show-deadline
             var show_huid = false;
             var show_tags = false;
             var show_deadline = false;
@@ -206,6 +243,22 @@ pub fn main() !void {
                 } else if (std.mem.eql(u8, second, "--tags") or std.mem.eql(u8, second, "-t")) {
                     show_tags = true;
                 } else if (std.mem.eql(u8, second, "--deadline") or std.mem.eql(u8, second, "-d")) {
+                    show_deadline = true;
+                } else if (std.mem.eql(u8, second, "-ut") or std.mem.eql(u8, second, "-tu")) {
+                    show_huid = true;
+                    show_tags = true;
+                } else if (std.mem.eql(u8, second, "-ud") or std.mem.eql(u8, second, "-du")) {
+                    show_huid = true;
+                    show_deadline = true;
+                } else if (std.mem.eql(u8, second, "-td") or std.mem.eql(u8, second, "-dt")) {
+                    show_tags = true;
+                    show_deadline = true;
+                } else if (std.mem.eql(u8, second, "-utd") or std.mem.eql(u8, second, "-udt") or
+                    std.mem.eql(u8, second, "-tud") or std.mem.eql(u8, second, "-tdu") or
+                    std.mem.eql(u8, second, "-dut") or std.mem.eql(u8, second, "-dtu"))
+                {
+                    show_huid = true;
+                    show_tags = true;
                     show_deadline = true;
                 } else if (std.mem.eql(u8, second, "--start") or std.mem.eql(u8, second, "-s")) {
                     const sh = it.next() orelse {
