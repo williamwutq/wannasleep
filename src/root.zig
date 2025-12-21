@@ -195,10 +195,16 @@ pub const TODO = struct {
             if (self.completed) {
                 if (!options.print_inactive) {
                     try writer.print("[x] ", .{});
+                } else {
+                    allocating.deinit();
+                    return self.allocator.dupe(u8, "");
                 }
             } else if (self.canceled) {
                 if (!options.print_inactive) {
                     try writer.print("[-] ", .{});
+                } else {
+                    allocating.deinit();
+                    return self.allocator.dupe(u8, "");
                 }
             } else {
                 try writer.print("[ ] ", .{});
@@ -904,6 +910,71 @@ pub fn listRun(
         const output = try todo.print(options);
         defer allocator.free(output);
         try bufferedPrintf("{s}\n", .{output});
+        todo.deinit();
+    }
+}
+
+pub fn remindHelp() !void {
+    const remind_help_msg =
+        "Usage: todo remind -s <start_huid> -e <end_huid>\n\nReminds about todo items that are due within the specified time range.\nOptions:\n    -s, --start    Start of the time range in HUID format (inclusive)\n    -e, --end      End of the time range in HUID format (inclusive)\n    -u, --huid     Show the HUID of each item\n    -t, --tags     Show the tags associated with each item\n    -d, --deadline Show the deadline of each item\nExample:\n    $ todo remind -s 20210701-000000 -e 20210707-235959\n";
+    try bufferedPrintln(remind_help_msg);
+}
+
+pub fn remindRun(
+    allocator: std.mem.Allocator,
+    show_huid: bool,
+    show_tags: bool,
+    show_deadline: bool,
+    start_huid_str: ?[]const u8,
+    end_huid_str: ?[]const u8,
+) !void {
+    var start_huid: HUID = undefined;
+    var end_huid: ?HUID = null;
+    if (start_huid_str) |start_huid_val| {
+        start_huid = HUID.initstr(start_huid_val, allocator) catch {
+            try bufferedPrint("Error: Invalid start HUID format.\n");
+            return remindHelp();
+        };
+    } else {
+        start_huid = HUID.initid(@divFloor(std.time.milliTimestamp(), 1000), allocator) catch {
+            try bufferedPrint("Error: Failed to get current time for start HUID.\n");
+            return;
+        };
+    }
+    defer start_huid.deinit();
+    if (end_huid_str) |end_huid_val| {
+        end_huid = HUID.initstr(end_huid_val, allocator) catch {
+            try bufferedPrint("Error: Invalid end HUID format.\n");
+            return remindHelp();
+        };
+    }
+    defer {
+        if (end_huid) |end_huid_val| {
+            end_huid_val.deinit();
+        }
+    }
+    var todo_list = readEntireCSVAsTODOs(allocator, null) catch {
+        try bufferedPrint("Error: Failed to read todo list. Did you run 'todo init'?\n");
+        return remindHelp();
+    };
+    defer todo_list.deinit(allocator);
+    for (todo_list.items) |todo| {
+        if (todo.deadline) |dl| {
+            if (dl.compare(start_huid) >= 0 and
+                (end_huid == null or dl.compare(end_huid.?) <= 0))
+            {
+                const output = try todo.print(TODOPrintOptions{
+                    .print_inactive = false,
+                    .show_status = true,
+                    .show_huid = show_huid,
+                    .show_tags = show_tags,
+                    .show_deadline = show_deadline,
+                    .show_description = true,
+                });
+                defer allocator.free(output);
+                try bufferedPrintf("{s}\n", .{output});
+            }
+        }
         todo.deinit();
     }
 }

@@ -144,13 +144,55 @@ pub fn main() !void {
                 } else if (std.mem.eql(u8, second, "--all") or std.mem.eql(u8, second, "-a")) {
                     print_inactive = true;
                 } else {
-                    try wannasleep.bufferedPrint("Error: Unknown flag provided to 'list' command.\n");
+                    try wannasleep.bufferedPrintf("Error: Unknown flag {s} provided to 'list' command.\n", .{second});
                     return wannasleep.listHelp();
                 }
                 const next_arg = it.next() orelse break;
                 second = next_arg;
             }
             try wannasleep.listRun(allocator, print_inactive, show_status, show_huid, show_tags, show_deadline);
+        }
+    } else if (std.mem.eql(u8, first, "remind")) {
+        var second = it.next() orelse {
+            try wannasleep.remindHelp();
+            return;
+        };
+        if (std.mem.eql(u8, second, "--help") or std.mem.eql(u8, second, "-h")) {
+            try wannasleep.remindHelp();
+        } else {
+            // Parse flags: --show-status, --show-huid, --show-tags, --show-deadline, --print-inactive
+            var show_huid = false;
+            var show_tags = false;
+            var show_deadline = false;
+            var start_huid_str: ?[]const u8 = null;
+            var end_huid_str: ?[]const u8 = null;
+            while (true) {
+                if (std.mem.eql(u8, second, "--huid") or std.mem.eql(u8, second, "-u")) {
+                    show_huid = true;
+                } else if (std.mem.eql(u8, second, "--tags") or std.mem.eql(u8, second, "-t")) {
+                    show_tags = true;
+                } else if (std.mem.eql(u8, second, "--deadline") or std.mem.eql(u8, second, "-d")) {
+                    show_deadline = true;
+                } else if (std.mem.eql(u8, second, "--start") or std.mem.eql(u8, second, "-s")) {
+                    const sh = it.next() orelse {
+                        try wannasleep.bufferedPrintf("Error: No start HUID provided for '--start' flag.\n", .{});
+                        return wannasleep.remindHelp();
+                    };
+                    start_huid_str = sh;
+                } else if (std.mem.eql(u8, second, "--end") or std.mem.eql(u8, second, "-e")) {
+                    const eh = it.next() orelse {
+                        try wannasleep.bufferedPrintf("Error: No end HUID provided for '--end' flag.\n", .{});
+                        return wannasleep.remindHelp();
+                    };
+                    end_huid_str = eh;
+                } else {
+                    try wannasleep.bufferedPrintf("Error: Unknown flag {s} provided to 'remind' command.\n", .{second});
+                    return wannasleep.listHelp();
+                }
+                const next_arg = it.next() orelse break;
+                second = next_arg;
+            }
+            try wannasleep.remindRun(allocator, show_huid, show_tags, show_deadline, start_huid_str, end_huid_str);
         }
     } else if (std.mem.eql(u8, first, "author")) {
         try wannasleep.author(); // Why would you put any other arguments after author?
