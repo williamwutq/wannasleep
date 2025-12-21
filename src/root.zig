@@ -1,4 +1,8 @@
 const std = @import("std");
+const builtin = @import("builtin");
+
+const build_version = "0.1.2";
+const build_version_detail = "-nightly-2025-12-20";
 
 // TODO:
 // todo add
@@ -14,6 +18,7 @@ const std = @import("std");
 /// Contains a description, completion status, tags, and a HUID.
 pub const TODO = struct {
     completed: bool,
+    canceled: bool,
     description: []const u8,
     tags: []const []const u8,
     allocator: std.mem.Allocator,
@@ -35,6 +40,7 @@ pub const TODO = struct {
         const description_copy = try allocator.dupe(u8, description);
         return TODO{
             .completed = false,
+            .canceled = false,
             .description = description_copy,
             .tags = all_tags,
             .allocator = allocator,
@@ -394,6 +400,106 @@ test "HUID Detect No HUIDs" {
     const huids = try HUID.detect(&haystack, allocator);
     defer allocator.free(huids);
     try std.testing.expectEqual(0, huids.len);
+}
+
+pub fn init() !void {
+    const cwd = std.fs.cwd();
+    // Ensure the directory exists before opening it
+    cwd.makeDir(".todo") catch |err| {
+        if (err != std.fs.SelfExePathError.PathAlreadyExists) {
+            return err;
+        }
+    };
+    var todo_dir = try cwd.openDir(".todo", .{});
+    defer todo_dir.close();
+    // Ensure the /data directory exists
+    todo_dir.makeDir("data") catch |err| {
+        if (err != std.fs.SelfExePathError.PathAlreadyExists) {
+            return err;
+        }
+    };
+    var data_dir = try todo_dir.openDir("data", .{});
+    defer data_dir.close();
+    // Create the main.csv file if it doesn't exist
+    var main_todo_file = try data_dir.createFile("main.csv", .{});
+    defer main_todo_file.close();
+    try bufferedPrintln("Todo list initialized.");
+    return;
+}
+
+pub fn initHelp() !void {
+    const init_help_msg =
+        "Usage: todo init\n\nInitializes a new todo list in the current directory by creating a .todo directory with necessary files.\nIf the .todo directory already exists, it will not overwrite existing files.\nExample:\n    $ todo init\n    Todo list initialized.\n";
+    try bufferedPrintln(init_help_msg);
+}
+
+// TODO:
+// todo add
+// todo list
+// todo finish
+// todo remind
+// todo remove
+// todo grep
+// todo edit
+// todo defer
+
+pub fn help() !void {
+    const help_msg =
+        \\Usage: todo <command> [<args>]
+        \\Commands:
+        \\    add       Add a new todo item and print generated HUID
+        \\    author    Show author information
+        \\    cancel    Cancel a todo item
+        \\    defer     Defer a todo item's due time by a specified duration
+        \\    edit      Edit the description or tags of a todo item
+        \\    finish    Mark a todo item as completed
+        \\    grep      Search todo items by keyword or tag
+        \\    help      Show this help message and exit
+        \\    huid      Generate a new HUID based on the current time
+        \\    init      Creates an empty todo list in the current directory
+        \\    list      List all todo items
+        \\    remind    Remind about todo items due within a time range
+        \\    remove    Remove a todo item
+        \\    version   Show version information
+        \\Common Options:
+        \\    -h, --help       Show this help message and exit
+        \\    -v, --version    Show version information and exit
+        \\    -m, --message    Specify the description for the todo item (used with 'add' and 'edit' commands)
+        \\    -t, --tags       Comma-separated list of tags for the todo item
+        \\    -i, --id         Specify the HUID of the todo item to operate on
+        \\For detailed help on a specific command, run: todo <command> --help
+    ;
+    try bufferedPrintln(help_msg);
+}
+
+pub fn version() !void {
+    try bufferedPrintln("todo (wannasleep) version " ++ build_version ++ " (Zig " ++ builtin.zig_version_string ++ ")");
+}
+
+pub fn versionHelp() !void {
+    const version_help_msg =
+        "todo (wannasleep) version " ++ build_version ++ "\nA simple command-line todo list manager written in Zig.\nBuild Information:\n    Build Version: " ++ build_version ++ build_version_detail ++ "\n    Zig Version: " ++ builtin.zig_version_string ++ "\nAuthor: William Wu";
+    try bufferedPrintln(version_help_msg);
+}
+
+pub fn author() !void {
+    try bufferedPrintln("Created by William Wu");
+}
+
+pub fn unknownCommand(cmd: []const u8) !void {
+    try bufferedPrintf("'{s}' is not a recognized command. See 'todo --help' for a list of available commands.\n", .{cmd});
+}
+
+pub fn huidRun(allocator: std.mem.Allocator) !void {
+    const huidid = try HUID.initid(@divFloor(std.time.milliTimestamp(), 1000), allocator);
+    defer huidid.deinit();
+    try bufferedPrintf("{s}\n", .{huidid.id_str});
+}
+
+pub fn huidHelp() !void {
+    const huid_help_msg =
+        "Usage: todo huid\n\nGenerates a new Human Readable Unique Identifier (HUID) based on the current time.\nThe HUID format is YYYYMMDD-HHMMSS, representing the year, month, day, hour, minute, and second of creation.\nTo avoid conflicts, you should not generated HUIDs very often.\nExample:\n    $ todo huid\n    20231220-153045\n";
+    try bufferedPrintln(huid_help_msg);
 }
 
 pub fn bufferedPrint(str: []const u8) !void {
