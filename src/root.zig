@@ -10,6 +10,58 @@ const std = @import("std");
 // todo edit
 // todo defer
 
+/// A "todo" item
+/// Contains a description, completion status, tags, and a HUID.
+pub const TODO = struct {
+    completed: bool,
+    description: []const u8,
+    tags: []const []const u8,
+    allocator: std.mem.Allocator,
+    huid: HUID,
+    /// Initialize a new "todo" item, infer allocator from huid.
+    /// The ownership of the huid is transferred to the "todo" item, but the strings are copied.
+    pub fn init(
+        description: []const u8,
+        tags: []const []const u8,
+        huid: HUID,
+    ) !TODO {
+        const allocator = huid.allocator;
+        var tag_list = try std.ArrayList([]const u8).initCapacity(allocator, tags.len);
+        for (tags) |tag| {
+            const dup_tag = try allocator.dupe(u8, tag);
+            try tag_list.append(allocator, dup_tag);
+        }
+        const all_tags = try tag_list.toOwnedSlice(allocator);
+        const description_copy = try allocator.dupe(u8, description);
+        return TODO{
+            .completed = false,
+            .description = description_copy,
+            .tags = all_tags,
+            .allocator = allocator,
+            .huid = huid,
+        };
+    }
+    /// Deinitialize the "todo" item, freeing allocated memory.
+    pub fn deinit(self: TODO) void {
+        for (self.tags) |tag| self.allocator.free(tag);
+        self.allocator.free(self.tags);
+        self.huid.deinit();
+        self.allocator.free(self.description);
+    }
+};
+
+test "TODO init and deinit" {
+    const allocator = std.testing.allocator;
+    const huid = try HUID.initid(1625072400, allocator);
+    const tags = [_][]const u8{ "work", "urgent" };
+    const todo = try TODO.init("Finish the report", &tags, huid);
+    defer todo.deinit();
+    try std.testing.expect(!todo.completed);
+    try std.testing.expectEqualStrings("Finish the report", todo.description);
+    try std.testing.expectEqualStrings("work", todo.tags[0]);
+    try std.testing.expectEqualStrings("urgent", todo.tags[1]);
+}
+
 /// HUIDs: Human Readable Unique Identifiers
 /// See: https://www.youtube.com/watch?v=QH6KOEVnSZA
 ///
@@ -342,4 +394,33 @@ test "HUID Detect No HUIDs" {
     const huids = try HUID.detect(&haystack, allocator);
     defer allocator.free(huids);
     try std.testing.expectEqual(0, huids.len);
+}
+
+pub fn bufferedPrint(str: []const u8) !void {
+    var stdout_buffer: [1024]u8 = undefined;
+    var stdout_writer = std.fs.File.stdout().writer(&stdout_buffer);
+    const stdout = &stdout_writer.interface;
+    try stdout.writeAll(str);
+    try stdout.flush();
+}
+pub fn bufferedPrintln(str: []const u8) !void {
+    var stdout_buffer: [1024]u8 = undefined;
+    var stdout_writer = std.fs.File.stdout().writer(&stdout_buffer);
+    const stdout = &stdout_writer.interface;
+    try stdout.writeAll(str);
+    try stdout.writeByte('\n');
+    try stdout.flush();
+}
+pub fn bufferedPrintf(comptime fmt: []const u8, args: anytype) !void {
+    var stdout_buffer: [1024]u8 = undefined;
+    var stdout_writer = std.fs.File.stdout().writer(&stdout_buffer);
+    const stdout = &stdout_writer.interface;
+    try stdout.print(fmt, args);
+    try stdout.flush();
+}
+
+test "bufferedPrint" {
+    try bufferedPrint("Hello, World!");
+    try bufferedPrintln("Hello, World with newline!");
+    try bufferedPrintf("Hello, {s} with formatted print!\n", .{"World"});
 }
