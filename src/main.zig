@@ -152,8 +152,26 @@ pub fn main() !void {
             }
             try wannasleep.listRun(allocator, print_inactive, show_status, show_huid, show_tags, show_deadline);
         }
+    } else if (std.mem.eql(u8, first, "cancel")) {
+        const second = it.next() orelse {
+            try wannasleep.bufferedPrint("Error: No arguments provided for 'cancel' command.\n");
+            try wannasleep.cancelHelp();
+            return;
+        };
+        if (std.mem.eql(u8, second, "--help") or std.mem.eql(u8, second, "-h")) {
+            try wannasleep.cancelHelp();
+        } else if (std.mem.eql(u8, second, "--huid") or std.mem.eql(u8, second, "-u")) {
+            const huid_str = it.next() orelse {
+                try wannasleep.bufferedPrint("Error: No HUID provided for '--huid' flag.\n");
+                return wannasleep.cancelHelp();
+            };
+            try wannasleep.cancelRun(allocator, huid_str);
+        } else {
+            try wannasleep.cancelRun(allocator, second);
+        }
     } else if (std.mem.eql(u8, first, "remind")) {
         var second = it.next() orelse {
+            try wannasleep.bufferedPrint("Error: No arguments provided for 'remind' command.\n");
             try wannasleep.remindHelp();
             return;
         };

@@ -160,6 +160,28 @@ pub const TODO = struct {
             .deadline = deadline,
         };
     }
+    pub fn canceledTransferOwnerships(self: TODO) TODO {
+        return TODO{
+            .completed = self.completed,
+            .canceled = true,
+            .description = self.description,
+            .tags = self.tags,
+            .allocator = self.allocator,
+            .huid = self.huid,
+            .deadline = self.deadline,
+        };
+    }
+    pub fn completeTransferOwnerships(self: TODO) TODO {
+        return TODO{
+            .completed = true,
+            .canceled = self.canceled,
+            .description = self.description,
+            .tags = self.tags,
+            .allocator = self.allocator,
+            .huid = self.huid,
+            .deadline = self.deadline,
+        };
+    }
     /// Serialize the "todo" item into a CSV row.
     /// Reverse of fromRow().
     ///
@@ -193,14 +215,14 @@ pub const TODO = struct {
         var writer = &allocating.writer;
         if (options.show_status) {
             if (self.completed) {
-                if (!options.print_inactive) {
+                if (options.print_inactive) {
                     try writer.print("[x] ", .{});
                 } else {
                     allocating.deinit();
                     return self.allocator.dupe(u8, "");
                 }
             } else if (self.canceled) {
-                if (!options.print_inactive) {
+                if (options.print_inactive) {
                     try writer.print("[-] ", .{});
                 } else {
                     allocating.deinit();
@@ -895,7 +917,7 @@ pub fn listRun(
     };
     defer todo_list.deinit(allocator);
     for (todo_list.items) |todo| {
-        if (!print_inactive and todo.completed) {
+        if (!print_inactive and (todo.completed or todo.canceled)) {
             todo.deinit();
             continue;
         }
@@ -979,10 +1001,78 @@ pub fn remindRun(
     }
 }
 
+pub fn cancelHelp() !void {
+    const cancel_help_msg =
+        "Usage: todo cancel [-u] <huid>\n\nCancels a todo item with the specified HUID.\nOptions:\n    -u, --huid    HUID of the todo item to cancel (required)\nExample:\n    $ todo cancel 20210630-170000\n    Todo item with HUID 20210630-170000 has been canceled.\n";
+    try bufferedPrintln(cancel_help_msg);
+}
+
+pub fn cancelRun(
+    allocator: std.mem.Allocator,
+    huid_str: []const u8,
+) !void {
+    const huid = HUID.initstr(huid_str, allocator) catch {
+        try bufferedPrint("Error: Invalid HUID format.\n");
+        return cancelHelp();
+    };
+    defer huid.deinit();
+    var todo_list = readEntireCSVAsTODOs(allocator, null) catch {
+        try bufferedPrint("Error: Failed to read todo list. Did you run 'todo init'?\n");
+        return cancelHelp();
+    };
+    defer todo_list.deinit(allocator);
+    var found = false;
+    var count: usize = 0;
+    for (todo_list.items) |todo| {
+        if (todo.huid.compare(huid) == 0) {
+            todo_list.items[count] = todo.canceledTransferOwnerships();
+            found = true;
+        }
+        count += 1;
+    }
+    if (!found) {
+        try bufferedPrintf("Error: Todo item with HUID {s} not found.\n", .{huid.id_str});
+        for (todo_list.items) |todo| {
+            todo.deinit();
+        }
+        return;
+    } else {
+        // Rewrite the CSV file
+        const cwd = std.fs.cwd();
+        var todo_dir = try cwd.openDir(".todo", .{});
+        defer todo_dir.close();
+        var data_dir = try todo_dir.openDir("data", .{});
+        defer data_dir.close();
+        var main_todo_file = try data_dir.createFile("main.csv", .{ .truncate = true, .read = false });
+        defer main_todo_file.close();
+        defer {
+            for (todo_list.items) |todo| {
+                todo.deinit();
+            }
+        }
+        var first = true;
+        for (todo_list.items) |todo| {
+            const serialized = try todo.serialize();
+            defer allocator.free(serialized);
+            if (!first) {
+                main_todo_file.writeAll("\n") catch {
+                    try bufferedPrintln("Error: Failed to write to todo CSV file.");
+                    return;
+                };
+            } else {
+                first = false;
+            }
+            main_todo_file.writeAll(serialized) catch {
+                try bufferedPrintln("Error: Failed to write to todo CSV file.");
+                return;
+            };
+        }
+        try bufferedPrintf("Todo item with HUID {s} has been canceled.\n", .{huid.id_str});
+    }
+}
+
 // TODO:
-// todo cancel
 // todo finish
-// todo remind
 // todo remove
 // todo grep
 // todo edit
