@@ -188,8 +188,7 @@ pub fn main() !void {
         }
     } else if (std.mem.eql(u8, first, "remind")) {
         var second = it.next() orelse {
-            try wannasleep.bufferedPrint("Error: No arguments provided for 'remind' command.\n");
-            try wannasleep.remindHelp();
+            try wannasleep.remindRun(allocator, false, false, false, null, null);
             return;
         };
         if (std.mem.eql(u8, second, "--help") or std.mem.eql(u8, second, "-h")) {
@@ -222,7 +221,7 @@ pub fn main() !void {
                     end_huid_str = eh;
                 } else {
                     try wannasleep.bufferedPrintf("Error: Unknown flag {s} provided to 'remind' command.\n", .{second});
-                    return wannasleep.listHelp();
+                    return wannasleep.remindHelp();
                 }
                 const next_arg = it.next() orelse break;
                 second = next_arg;
