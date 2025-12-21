@@ -7,3 +7,6 @@ zig-out/*
 *.so
 *.dylib
 .todo/*
+
+## MacOS
+.DS_Store
