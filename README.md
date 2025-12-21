@@ -47,10 +47,9 @@ Commands:
     version   Show version information
 Common Options:
     -h, --help       Show this help message and exit
-    -v, --version    Show version information and exit
     -m, --message    Specify the description for the todo item (used with 'add' and 'edit' commands)
     -t, --tags       Comma-separated list of tags for the todo item
-    -i, --id         Specify the HUID of the todo item to operate on
+    -u, --huid       Specify the HUID of the todo item to operate on
     -d, --deadline   Specify the deadline for the todo item in HUID format
 For detailed help on a specific command, run: todo <command> --help
 ```
