@@ -23,6 +23,7 @@ pub const TODO = struct {
     tags: []const []const u8,
     allocator: std.mem.Allocator,
     huid: HUID,
+    deadline: ?HUID,
     /// Initialize a new "todo" item, infer allocator from huid.
     /// The ownership of the huid is transferred to the "todo" item, but the strings are copied.
     pub fn init(
@@ -44,14 +45,88 @@ pub const TODO = struct {
             .description = description_copy,
             .tags = all_tags,
             .allocator = allocator,
+            .deadline = null,
             .huid = huid,
         };
+    }
+    /// Initialize a "todo" item from a CSV row.
+    pub fn fromRow(row: []const u8, allocator: std.mem.Allocator) !TODO {
+        // Format: huid,[status],deadline,description,tag1,tag2,...
+        // Status is either "c" for completed, "x" for canceled, or "o" for pending
+        var parts = std.mem.splitAny(u8, row, ",");
+        const huid_str = parts.next() orelse return error.InvalidTODOFormat;
+        const huid = try HUID.initstr(huid_str, allocator);
+        const status_str = parts.next() orelse return error.InvalidTODOFormat;
+        var completed: bool = false;
+        var canceled: bool = false;
+        if (std.mem.eql(u8, status_str, "c")) {
+            completed = true;
+        } else if (std.mem.eql(u8, status_str, "x")) {
+            canceled = true;
+        } else if (std.mem.eql(u8, status_str, "o")) {
+            // pending
+        } else {
+            return error.InvalidTODOFormat;
+        }
+        const deadline_str = parts.next() orelse return error.InvalidTODOFormat;
+        var deadline: ?HUID = null;
+        if (!std.mem.eql(u8, deadline_str, "")) {
+            deadline = try HUID.initstr(deadline_str, allocator);
+        }
+        const description = parts.next() orelse return error.InvalidTODOFormat;
+        var tag_list = try std.ArrayList([]const u8).initCapacity(allocator, 4);
+        while (true) {
+            const tag = parts.next() orelse break;
+            const dup_tag = try allocator.dupe(u8, tag);
+            try tag_list.append(allocator, dup_tag);
+        }
+        const all_tags = try tag_list.toOwnedSlice(allocator);
+        return TODO{
+            .completed = completed,
+            .canceled = canceled,
+            .description = try allocator.dupe(u8, description),
+            .tags = all_tags,
+            .allocator = allocator,
+            .huid = huid,
+            .deadline = deadline,
+        };
+    }
+    /// Serialize the "todo" item into a CSV row.
+    /// Reverse of fromRow().
+    ///
+    /// You do need to call allocator.free() on the returned slice after use,
+    /// and you also need to deinitialize the "todo" item separately.
+    pub fn serialize(self: TODO) ![]const u8 {
+        var allocating = std.io.Writer.Allocating.init(self.allocator);
+        var writer = &allocating.writer;
+        try writer.print("{s},", .{self.huid.id_str});
+        if (self.completed) {
+            try writer.print("c,", .{});
+        } else if (self.canceled) {
+            try writer.print("x,", .{});
+        } else {
+            try writer.print("o,", .{});
+        }
+        if (self.deadline) |dl| {
+            try writer.print("{s},", .{dl.id_str});
+        } else {
+            try writer.print(",", .{});
+        }
+        try writer.print("{s}", .{self.description});
+        for (self.tags) |tag| {
+            try writer.print(",{s}", .{tag});
+        }
+        const result = try allocating.toOwnedSlice();
+        return result;
     }
     /// Deinitialize the "todo" item, freeing allocated memory.
     pub fn deinit(self: TODO) void {
         for (self.tags) |tag| self.allocator.free(tag);
         self.allocator.free(self.tags);
         self.huid.deinit();
+        if (self.deadline) |dl| {
+            dl.deinit();
+        }
         self.allocator.free(self.description);
     }
 };
@@ -66,6 +141,41 @@ test "TODO init and deinit" {
     try std.testing.expectEqualStrings("Finish the report", todo.description);
     try std.testing.expectEqualStrings("work", todo.tags[0]);
     try std.testing.expectEqualStrings("urgent", todo.tags[1]);
+}
+
+test "TODO fromRow and serialize" {
+    const allocator = std.testing.allocator;
+    const row = "20210630-170000,o,20210701-120000,Finish the report,work,urgent";
+    const todo = try TODO.fromRow(row, allocator);
+    defer todo.deinit();
+    try std.testing.expect(!todo.completed);
+    try std.testing.expectEqualStrings("Finish the report", todo.description);
+    try std.testing.expectEqualStrings("work", todo.tags[0]);
+    try std.testing.expectEqualStrings("urgent", todo.tags[1]);
+    try std.testing.expectEqual(1625072400, todo.huid.unix_time);
+    const deadline = todo.deadline orelse return error.InvalidTODOFormat;
+    try std.testing.expectEqual(1625140800, deadline.unix_time);
+    const serialized = try todo.serialize();
+    defer allocator.free(serialized);
+    std.debug.print("Serialized: {s}\n", .{serialized});
+    try std.testing.expectEqualStrings(row, serialized);
+}
+
+test "TODO fromRow and serialize no deadline" {
+    const allocator = std.testing.allocator;
+    const row = "20210630-170000,c,,Finish the report,work,urgent";
+    const todo = try TODO.fromRow(row, allocator);
+    defer todo.deinit();
+    try std.testing.expect(todo.completed);
+    try std.testing.expectEqualStrings("Finish the report", todo.description);
+    try std.testing.expectEqualStrings("work", todo.tags[0]);
+    try std.testing.expectEqualStrings("urgent", todo.tags[1]);
+    try std.testing.expectEqual(1625072400, todo.huid.unix_time);
+    try std.testing.expect(todo.deadline == null);
+    const serialized = try todo.serialize();
+    defer allocator.free(serialized);
+    std.debug.print("Serialized: {s}\n", .{serialized});
+    try std.testing.expectEqualStrings(row, serialized);
 }
 
 /// HUIDs: Human Readable Unique Identifiers
@@ -435,6 +545,7 @@ pub fn initHelp() !void {
 
 // TODO:
 // todo add
+// todo cancel
 // todo list
 // todo finish
 // todo remind
