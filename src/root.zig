@@ -1157,8 +1157,80 @@ pub fn finishRun(
     }
 }
 
+pub fn removeHelp() !void {
+    const remove_help_msg =
+        "Usage: todo remove [-u] <huid>\n\nRemoves a todo item with the specified HUID from the todo list.\nThe operation is permanent and not recoverable.\nOptions:\n    -u, --huid    HUID of the todo item to remove (required)\nExample:\n    $ todo remove 20210630-170000\n    Todo item with HUID 20210630-170000 has been removed.\n";
+    try bufferedPrintln(remove_help_msg);
+}
+
+pub fn removeRun(
+    allocator: std.mem.Allocator,
+    huid_str: []const u8,
+) !void {
+    const huid = HUID.initstr(huid_str, allocator) catch {
+        try bufferedPrint("Error: Invalid HUID format.\n");
+        return removeHelp();
+    };
+    defer huid.deinit();
+    var todo_list = readEntireCSVAsTODOs(allocator, null) catch {
+        try bufferedPrint("Error: Failed to read todo list. Did you run 'todo init'?\n");
+        return removeHelp();
+    };
+    defer todo_list.deinit(allocator);
+    var found = false;
+    var count: usize = 0;
+    for (todo_list.items) |todo| {
+        if (todo.huid.compare(huid) == 0) {
+            todo.deinit();
+            found = true;
+            // Skip incrementing count to remove the item
+        } else {
+            todo_list.items[count] = todo;
+            count += 1;
+        }
+    }
+    if (!found) {
+        try bufferedPrintf("Error: Todo item with HUID {s} not found.\n", .{huid.id_str});
+        for (todo_list.items) |todo| {
+            todo.deinit();
+        }
+        return;
+    } else {
+        // Rewrite the CSV file
+        const cwd = std.fs.cwd();
+        var todo_dir = try cwd.openDir(".todo", .{});
+        defer todo_dir.close();
+        var data_dir = try todo_dir.openDir("data", .{});
+        defer data_dir.close();
+        var main_todo_file = try data_dir.createFile("main.csv", .{ .truncate = true, .read = false });
+        defer main_todo_file.close();
+        defer {
+            for (todo_list.items[0..count]) |todo| {
+                todo.deinit();
+            }
+        }
+        var first = true;
+        for (todo_list.items[0..count]) |todo| {
+            const serialized = try todo.serialize();
+            defer allocator.free(serialized);
+            if (!first) {
+                main_todo_file.writeAll("\n") catch {
+                    try bufferedPrintln("Error: Failed to write to todo CSV file.");
+                    return;
+                };
+            } else {
+                first = false;
+            }
+            main_todo_file.writeAll(serialized) catch {
+                try bufferedPrintln("Error: Failed to write to todo CSV file.");
+                return;
+            };
+        }
+        try bufferedPrintf("Todo item with HUID {s} has been removed.\n", .{huid.id_str});
+    }
+}
+
 // TODO:
-// todo remove
 // todo grep
 // todo edit
 // todo defer

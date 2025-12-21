@@ -281,6 +281,23 @@ pub fn main() !void {
             }
             try wannasleep.remindRun(allocator, show_huid, show_tags, show_deadline, start_huid_str, end_huid_str);
         }
+    } else if (std.mem.eql(u8, first, "remove")) {
+        const second = it.next() orelse {
+            try wannasleep.bufferedPrint("Error: No arguments provided for 'remove' command.\n");
+            try wannasleep.removeHelp();
+            return;
+        };
+        if (std.mem.eql(u8, second, "--help") or std.mem.eql(u8, second, "-h")) {
+            try wannasleep.removeHelp();
+        } else if (std.mem.eql(u8, second, "--huid") or std.mem.eql(u8, second, "-u")) {
+            const huid_str = it.next() orelse {
+                try wannasleep.bufferedPrint("Error: No HUID provided for '--huid' flag.\n");
+                return wannasleep.removeHelp();
+            };
+            try wannasleep.removeRun(allocator, huid_str);
+        } else {
+            try wannasleep.removeRun(allocator, second);
+        }
     } else if (std.mem.eql(u8, first, "author")) {
         try wannasleep.author(); // Why would you put any other arguments after author?
     } else {
