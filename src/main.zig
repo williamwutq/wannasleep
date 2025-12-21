@@ -118,6 +118,40 @@ pub fn main() !void {
                 else => return err,
             };
         }
+    } else if (std.mem.eql(u8, first, "list")) {
+        var second = it.next() orelse {
+            try wannasleep.listRun(allocator, false, false, false, false, false);
+            return;
+        };
+        if (std.mem.eql(u8, second, "--help") or std.mem.eql(u8, second, "-h")) {
+            try wannasleep.listHelp();
+        } else {
+            // Parse flags: --show-status, --show-huid, --show-tags, --show-deadline, --print-inactive
+            var show_status = false;
+            var show_huid = false;
+            var show_tags = false;
+            var show_deadline = false;
+            var print_inactive = false;
+            while (true) {
+                if (std.mem.eql(u8, second, "--status") or std.mem.eql(u8, second, "-s")) {
+                    show_status = true;
+                } else if (std.mem.eql(u8, second, "--huid") or std.mem.eql(u8, second, "-u")) {
+                    show_huid = true;
+                } else if (std.mem.eql(u8, second, "--tags") or std.mem.eql(u8, second, "-t")) {
+                    show_tags = true;
+                } else if (std.mem.eql(u8, second, "--deadline") or std.mem.eql(u8, second, "-d")) {
+                    show_deadline = true;
+                } else if (std.mem.eql(u8, second, "--all") or std.mem.eql(u8, second, "-a")) {
+                    print_inactive = true;
+                } else {
+                    try wannasleep.bufferedPrint("Error: Unknown flag provided to 'list' command.\n");
+                    return wannasleep.listHelp();
+                }
+                const next_arg = it.next() orelse break;
+                second = next_arg;
+            }
+            try wannasleep.listRun(allocator, print_inactive, show_status, show_huid, show_tags, show_deadline);
+        }
     } else if (std.mem.eql(u8, first, "author")) {
         try wannasleep.author(); // Why would you put any other arguments after author?
     } else {

@@ -4,20 +4,19 @@ const builtin = @import("builtin");
 const build_version = "0.1.2";
 const build_version_detail = "-nightly-2025-12-20";
 
-// TODO:
-// todo add
-// todo list
-// todo finish
-// todo remind
-// todo remove
-// todo grep
-// todo edit
-// todo defer
-
 pub const Errors = error{
     InvalidArguments,
     InvalidHUIDString,
     InvalidTODOFormat,
+};
+
+pub const TODOPrintOptions = struct {
+    print_inactive: bool,
+    show_status: bool,
+    show_huid: bool,
+    show_tags: bool,
+    show_deadline: bool,
+    show_description: bool,
 };
 
 /// A "todo" item
@@ -189,6 +188,51 @@ pub const TODO = struct {
         const result = try allocating.toOwnedSlice();
         return result;
     }
+    pub fn print(self: TODO, options: TODOPrintOptions) ![]const u8 {
+        var allocating = std.io.Writer.Allocating.init(self.allocator);
+        var writer = &allocating.writer;
+        if (options.show_status) {
+            if (self.completed) {
+                if (!options.print_inactive) {
+                    try writer.print("[x] ", .{});
+                }
+            } else if (self.canceled) {
+                if (!options.print_inactive) {
+                    try writer.print("[-] ", .{});
+                }
+            } else {
+                try writer.print("[ ] ", .{});
+            }
+        }
+        if (options.show_huid) {
+            try writer.print("({s}) ", .{self.huid.id_str});
+        }
+        if (options.show_deadline) {
+            if (self.deadline) |dl| {
+                try writer.print("Deadline: {s} ", .{dl.id_str});
+            }
+        }
+        if (options.show_description) {
+            try writer.print("{s} ", .{self.description});
+        }
+        if (options.show_tags) {
+            if (self.tags.len > 0) {
+                try writer.print("[", .{});
+                var isFirst: bool = true;
+                for (self.tags) |tag| {
+                    if (!isFirst) {
+                        try writer.print(", ", .{});
+                    } else {
+                        isFirst = false;
+                    }
+                    try writer.print("{s}", .{tag});
+                }
+                try writer.print("] ", .{});
+            }
+        }
+        const result = try allocating.toOwnedSlice();
+        return result;
+    }
     /// Deinitialize the "todo" item, freeing allocated memory.
     pub fn deinit(self: TODO) void {
         for (self.tags) |tag| self.allocator.free(tag);
@@ -211,6 +255,28 @@ test "TODO init and deinit" {
     try std.testing.expectEqualStrings("Finish the report", todo.description);
     try std.testing.expectEqualStrings("work", todo.tags[0]);
     try std.testing.expectEqualStrings("urgent", todo.tags[1]);
+}
+
+test "TODO print" {
+    const allocator = std.testing.allocator;
+    const huid = try HUID.initid(1625072400, allocator);
+    const tags = [_][]const u8{ "work", "urgent" };
+    const todo = try TODO.init("Finish the report", &tags, huid, null);
+    defer todo.deinit();
+    const options = TODOPrintOptions{
+        .print_inactive = false,
+        .show_status = true,
+        .show_huid = true,
+        .show_tags = true,
+        .show_deadline = false,
+        .show_description = true,
+    };
+    const output = try todo.print(options);
+    defer allocator.free(output);
+    try std.testing.expectEqualStrings(
+        "[ ] (20210630-170000) Finish the report [work, urgent] ",
+        output,
+    );
 }
 
 test "TODO fromRow and serialize" {
@@ -797,13 +863,53 @@ pub fn addRun(
         return err;
     };
     defer todo.deinit();
-    try appendTODOToCSV(allocator, null, todo);
+    appendTODOToCSV(allocator, null, todo) catch {
+        return addError("Failed to append todo item to CSV file.");
+    };
     try bufferedPrintf("Todo item added with HUID: {s}\n", .{huid.id_str});
+}
+
+pub fn listHelp() !void {
+    const list_help_msg =
+        "Usage: todo list [options]\n\nLists all todo items with optional filters and display options.\nOptions:\n    -a, --all       Show all items including completed ones\n    -s, --status    Show the completion status of each item\n    -u, --huid      Show the HUID of each item\n    -t, --tags      Show the tags associated with each item\n    -d, --deadline  Show the deadline of each item\nExample:\n    $ todo list -a -s -u\n";
+    try bufferedPrintln(list_help_msg);
+}
+
+pub fn listRun(
+    allocator: std.mem.Allocator,
+    print_inactive: bool,
+    show_status: bool,
+    show_huid: bool,
+    show_tags: bool,
+    show_deadline: bool,
+) !void {
+    var todo_list = readEntireCSVAsTODOs(allocator, null) catch {
+        try bufferedPrint("Error: Failed to read todo list.\n");
+        return listHelp();
+    };
+    defer todo_list.deinit(allocator);
+    for (todo_list.items) |todo| {
+        if (!print_inactive and todo.completed) {
+            todo.deinit();
+            continue;
+        }
+        const options = TODOPrintOptions{
+            .print_inactive = print_inactive,
+            .show_status = show_status,
+            .show_huid = show_huid,
+            .show_tags = show_tags,
+            .show_deadline = show_deadline,
+            .show_description = true,
+        };
+        const output = try todo.print(options);
+        defer allocator.free(output);
+        try bufferedPrintf("{s}\n", .{output});
+        todo.deinit();
+    }
 }
 
 // TODO:
 // todo cancel
-// todo list
 // todo finish
 // todo remind
 // todo remove
