@@ -63,6 +63,61 @@ pub fn main() !void {
         } else {
             try wannasleep.init();
         }
+    } else if (std.mem.eql(u8, first, "add")) {
+        var second = it.next() orelse {
+            try wannasleep.addError("No arguments provided for 'add' command.");
+            return;
+        };
+        if (std.mem.eql(u8, second, "--help") or std.mem.eql(u8, second, "-h")) {
+            try wannasleep.addHelp();
+        } else {
+            // Parse args: --message, --tags, --deadline
+            var tags_array = try std.ArrayList([]const u8).initCapacity(allocator, 4);
+            defer tags_array.deinit(allocator);
+            var message: ?[]const u8 = null;
+            var deadline: ?[]const u8 = null;
+            while (true) {
+                if (std.mem.eql(u8, second, "--message") or std.mem.eql(u8, second, "-m")) {
+                    const msg = it.next() orelse {
+                        try wannasleep.addError("No message provided for '--message' flag.");
+                        return;
+                    };
+                    message = msg;
+                } else if (std.mem.eql(u8, second, "--tags") or std.mem.eql(u8, second, "-t")) {
+                    const tags_str = it.next() orelse {
+                        try wannasleep.addError("No tags provided for '--tags' flag.");
+                        return;
+                    };
+                    var tags_split = std.mem.splitAny(u8, tags_str, ",");
+                    while (tags_split.next()) |tag| {
+                        try tags_array.append(allocator, tag);
+                    }
+                } else if (std.mem.eql(u8, second, "--deadline") or std.mem.eql(u8, second, "-d")) {
+                    const dl = it.next() orelse {
+                        try wannasleep.addError("No deadline provided for '--deadline' flag.");
+                        return;
+                    };
+                    deadline = dl;
+                } else {
+                    try wannasleep.addError("Unknown argument provided to 'add' command.");
+                    return;
+                }
+                const next_arg = it.next() orelse break;
+                second = next_arg;
+            }
+            if (message == null) {
+                try wannasleep.addError("Missing required description for the todo item.");
+                return;
+            }
+            const tags = try tags_array.toOwnedSlice(allocator);
+            defer allocator.free(tags);
+            wannasleep.addRun(allocator, message.?, tags, deadline) catch |err| switch (err) {
+                wannasleep.Errors.InvalidHUIDString => {
+                    try wannasleep.addError("Invalid deadline HUID string.");
+                },
+                else => return err,
+            };
+        }
     } else if (std.mem.eql(u8, first, "author")) {
         try wannasleep.author(); // Why would you put any other arguments after author?
     } else {
