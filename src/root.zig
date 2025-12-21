@@ -543,6 +543,79 @@ pub fn initHelp() !void {
     try bufferedPrintln(init_help_msg);
 }
 
+pub fn readEntireCSVAsTODOs(
+    allocator: std.mem.Allocator,
+    path: ?[]const u8,
+) !std.ArrayList(TODO) {
+    const actual_path = if (path) |p| p else "main.csv";
+    var todo_list = try std.ArrayList(TODO).initCapacity(allocator, 12);
+    const cwd = std.fs.cwd();
+    var todo_dir = try cwd.openDir(".todo", .{});
+    defer todo_dir.close();
+    var data_dir = try todo_dir.openDir("data", .{});
+    defer data_dir.close();
+    var main_todo_file = try data_dir.openFile(actual_path, .{});
+    defer main_todo_file.close();
+    const big_string = try main_todo_file.readToEndAlloc(allocator, 8192);
+    defer allocator.free(big_string);
+    var lines = std.mem.splitAny(u8, big_string, "\n");
+    while (true) {
+        const line = lines.next() orelse break;
+        if (line.len == 0) continue; // Skip empty lines
+        const todo = try TODO.fromRow(line, allocator);
+        try todo_list.append(allocator, todo);
+    }
+    return todo_list;
+}
+
+pub fn readTODOWithHUID(
+    allocator: std.mem.Allocator,
+    path: ?[]const u8,
+    huid: HUID,
+) !?TODO {
+    var todo_list = try readEntireCSVAsTODOs(allocator, path);
+    defer todo_list.deinit(allocator);
+    var result: TODO = undefined;
+    for (todo_list.items) |todo| {
+        if (todo.huid.compare(huid) == 0) {
+            result = todo;
+        } else {
+            todo.deinit();
+        }
+    }
+    return result;
+}
+
+test "ReadEntireCSVAsTODOs" {
+    const allocator = std.testing.allocator;
+    // Prepare a sample CSV file
+    const sample_csv = "20210630-170000,o,,Finish the report,work,urgent\n20210701-120000,c,20210702-130000,Submit the assignment,school\n";
+    const cwd = std.fs.cwd();
+    var todo_dir = try cwd.openDir(".todo", .{});
+    defer todo_dir.close();
+    var data_dir = try todo_dir.openDir("data", .{});
+    defer data_dir.close();
+    var sample_file = try data_dir.createFile("sample.csv", .{ .truncate = true, .read = true });
+    defer sample_file.close();
+    try sample_file.writeAll(sample_csv);
+    // Read the CSV file
+    var todo_list = try readEntireCSVAsTODOs(allocator, "sample.csv");
+    defer todo_list.deinit(allocator);
+    defer for (todo_list.items) |todo| todo.deinit();
+    try std.testing.expectEqualStrings("Finish the report", todo_list.items[0].description);
+    try std.testing.expectEqualStrings("Submit the assignment", todo_list.items[1].description);
+}
+
+test "ReadTODOWithHUID" {
+    const allocator = std.testing.allocator;
+    const huid = try HUID.initstr("20210630-170000", allocator);
+    defer huid.deinit();
+    const todo_opt = try readTODOWithHUID(allocator, "sample.csv", huid);
+    const todo = todo_opt orelse return error.TODOItemNotFound;
+    defer todo.deinit();
+    try std.testing.expectEqualStrings("Finish the report", todo.description);
+}
+
 // TODO:
 // todo add
 // todo cancel
