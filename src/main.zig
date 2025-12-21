@@ -169,6 +169,23 @@ pub fn main() !void {
         } else {
             try wannasleep.cancelRun(allocator, second);
         }
+    } else if (std.mem.eql(u8, first, "finish")) {
+        const second = it.next() orelse {
+            try wannasleep.bufferedPrint("Error: No arguments provided for 'finish' command.\n");
+            try wannasleep.finishHelp();
+            return;
+        };
+        if (std.mem.eql(u8, second, "--help") or std.mem.eql(u8, second, "-h")) {
+            try wannasleep.finishHelp();
+        } else if (std.mem.eql(u8, second, "--huid") or std.mem.eql(u8, second, "-u")) {
+            const huid_str = it.next() orelse {
+                try wannasleep.bufferedPrint("Error: No HUID provided for '--huid' flag.\n");
+                return wannasleep.cancelHelp();
+            };
+            try wannasleep.finishRun(allocator, huid_str);
+        } else {
+            try wannasleep.finishRun(allocator, second);
+        }
     } else if (std.mem.eql(u8, first, "remind")) {
         var second = it.next() orelse {
             try wannasleep.bufferedPrint("Error: No arguments provided for 'remind' command.\n");
