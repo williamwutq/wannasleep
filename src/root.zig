@@ -51,12 +51,15 @@ pub const TODO = struct {
     }
     /// Initialize a "todo" item from a CSV row.
     pub fn fromRow(row: []const u8, allocator: std.mem.Allocator) !TODO {
-        // Format: huid,[status],deadline,description,tag1,tag2,...
+        // Format: huid,[status],deadline,"description",tag1,tag2,...
         // Status is either "c" for completed, "x" for canceled, or "o" for pending
         var parts = std.mem.splitAny(u8, row, ",");
         const huid_str = parts.next() orelse return error.InvalidTODOFormat;
         const huid = try HUID.initstr(huid_str, allocator);
-        const status_str = parts.next() orelse return error.InvalidTODOFormat;
+        const status_str = parts.next() orelse {
+            huid.deinit();
+            return error.InvalidTODOFormat;
+        };
         var completed: bool = false;
         var canceled: bool = false;
         if (std.mem.eql(u8, status_str, "c")) {
@@ -66,17 +69,77 @@ pub const TODO = struct {
         } else if (std.mem.eql(u8, status_str, "o")) {
             // pending
         } else {
+            huid.deinit();
             return error.InvalidTODOFormat;
         }
-        const deadline_str = parts.next() orelse return error.InvalidTODOFormat;
+        const deadline_str = parts.next() orelse {
+            huid.deinit();
+            return error.InvalidTODOFormat;
+        };
         var deadline: ?HUID = null;
         if (!std.mem.eql(u8, deadline_str, "")) {
             deadline = try HUID.initstr(deadline_str, allocator);
         }
-        const description = parts.next() orelse return error.InvalidTODOFormat;
+        const rest = parts.rest();
+        // This should be "description",tags... or description,tags...
+        var description: []const u8 = undefined;
+        var tags: []const u8 = undefined;
+        if (rest.len > 0 and rest[0] == '"') {
+            // Quoted description
+            var desc_end_index: usize = 0;
+            var in_quotes: bool = false;
+            var i: usize = 0;
+            while (i < rest.len) : (i += 1) {
+                const c = rest[i];
+                if (c == '"') {
+                    in_quotes = !in_quotes;
+                    if (!in_quotes) {
+                        desc_end_index = i;
+                        break;
+                    }
+                }
+            }
+            if (in_quotes) {
+                huid.deinit();
+                return error.InvalidTODOFormat;
+            }
+            // rest[0] == '"', so description is rest[1..desc_end_index]
+            description = rest[1..desc_end_index];
+            // tags start after the closing quote and comma
+            if (desc_end_index + 1 < rest.len and rest[desc_end_index + 1] == ',') {
+                tags = rest[desc_end_index + 2 ..];
+            } else if (desc_end_index + 1 == rest.len) {
+                tags = "";
+            } else {
+                huid.deinit();
+                return error.InvalidTODOFormat;
+            }
+        } else {
+            // Unquoted description: up to first comma
+            var comma_index: ?usize = null;
+            for (rest, 0..) |c, idx| {
+                if (c == ',') {
+                    comma_index = idx;
+                    break;
+                }
+            }
+            if (comma_index) |ci| {
+                description = rest[0..ci];
+                tags = rest[ci + 1 ..];
+            } else {
+                // No tags, only description
+                description = rest;
+                tags = "";
+            }
+        }
+        var tags_iter = std.mem.splitAny(u8, tags, ",");
         var tag_list = try std.ArrayList([]const u8).initCapacity(allocator, 4);
         while (true) {
-            const tag = parts.next() orelse break;
+            const tag = tags_iter.next() orelse break;
+            // If tag is empty, continue
+            if (tag.len == 0) {
+                continue;
+            }
             const dup_tag = try allocator.dupe(u8, tag);
             try tag_list.append(allocator, dup_tag);
         }
@@ -112,7 +175,7 @@ pub const TODO = struct {
         } else {
             try writer.print(",", .{});
         }
-        try writer.print("{s}", .{self.description});
+        try writer.print("\"{s}\"", .{self.description});
         for (self.tags) |tag| {
             try writer.print(",{s}", .{tag});
         }
@@ -145,7 +208,7 @@ test "TODO init and deinit" {
 
 test "TODO fromRow and serialize" {
     const allocator = std.testing.allocator;
-    const row = "20210630-170000,o,20210701-120000,Finish the report,work,urgent";
+    const row = "20210630-170000,o,20210701-120000,\"Finish the report\",work,urgent";
     const todo = try TODO.fromRow(row, allocator);
     defer todo.deinit();
     try std.testing.expect(!todo.completed);
@@ -157,13 +220,12 @@ test "TODO fromRow and serialize" {
     try std.testing.expectEqual(1625140800, deadline.unix_time);
     const serialized = try todo.serialize();
     defer allocator.free(serialized);
-    std.debug.print("Serialized: {s}\n", .{serialized});
     try std.testing.expectEqualStrings(row, serialized);
 }
 
 test "TODO fromRow and serialize no deadline" {
     const allocator = std.testing.allocator;
-    const row = "20210630-170000,c,,Finish the report,work,urgent";
+    const row = "20210630-170000,c,,\"Finish the report\",work,urgent";
     const todo = try TODO.fromRow(row, allocator);
     defer todo.deinit();
     try std.testing.expect(todo.completed);
@@ -174,8 +236,55 @@ test "TODO fromRow and serialize no deadline" {
     try std.testing.expect(todo.deadline == null);
     const serialized = try todo.serialize();
     defer allocator.free(serialized);
-    std.debug.print("Serialized: {s}\n", .{serialized});
     try std.testing.expectEqualStrings(row, serialized);
+}
+
+test "TODO fromRow unclosed quotes" {
+    const allocator = std.testing.allocator;
+    const row = "20210630-170000,o,,\"Finish the report,work,urgent";
+    const result = TODO.fromRow(row, allocator);
+    try std.testing.expect(result == error.InvalidTODOFormat);
+}
+
+test "TODO not quoted description" {
+    const allocator = std.testing.allocator;
+    const row = "20210630-170000,o,,Finish the report,work,urgent";
+    const todo = try TODO.fromRow(row, allocator);
+    defer todo.deinit();
+    try std.testing.expect(!todo.completed);
+    try std.testing.expectEqualStrings("Finish the report", todo.description);
+    try std.testing.expectEqualStrings("work", todo.tags[0]);
+    try std.testing.expectEqualStrings("urgent", todo.tags[1]);
+}
+
+test "TODO empty tags" {
+    const allocator = std.testing.allocator;
+    const row = "20210630-170000,o,,\"Finish the report\",";
+    const todo = try TODO.fromRow(row, allocator);
+    defer todo.deinit();
+    try std.testing.expect(!todo.completed);
+    try std.testing.expectEqualStrings("Finish the report", todo.description);
+    try std.testing.expectEqual(todo.tags.len, 0);
+}
+
+test "TODO empty tags missing comma" {
+    const allocator = std.testing.allocator;
+    const row = "20210630-170000,o,,\"Finish the report\"";
+    const todo = try TODO.fromRow(row, allocator);
+    defer todo.deinit();
+    try std.testing.expect(!todo.completed);
+    try std.testing.expectEqualStrings("Finish the report", todo.description);
+    try std.testing.expectEqual(0, todo.tags.len);
+}
+
+test "TODO quotes inside quotes" {
+    const allocator = std.testing.allocator;
+    const row = "20210630-170000,o,,\"Finish the \\\"report\\\"\",work";
+    const todo = try TODO.fromRow(row, allocator);
+    defer todo.deinit();
+    try std.testing.expect(!todo.completed);
+    try std.testing.expectEqualStrings("Finish the \\\"report\\\"", todo.description);
+    try std.testing.expectEqualStrings("work", todo.tags[0]);
 }
 
 /// HUIDs: Human Readable Unique Identifiers
@@ -575,9 +684,9 @@ pub fn readTODOWithHUID(
 ) !?TODO {
     var todo_list = try readEntireCSVAsTODOs(allocator, path);
     defer todo_list.deinit(allocator);
-    var result: TODO = undefined;
+    var result: ?TODO = null;
     for (todo_list.items) |todo| {
-        if (todo.huid.compare(huid) == 0) {
+        if (todo.huid.compare(huid) == 0 and result == null) {
             result = todo;
         } else {
             todo.deinit();
@@ -586,10 +695,31 @@ pub fn readTODOWithHUID(
     return result;
 }
 
+pub fn appendTODOToCSV(
+    allocator: std.mem.Allocator,
+    path: ?[]const u8,
+    todo: TODO,
+) !void {
+    const actual_path = if (path) |p| p else "main.csv";
+    const cwd = std.fs.cwd();
+    var todo_dir = try cwd.openDir(".todo", .{});
+    defer todo_dir.close();
+    var data_dir = try todo_dir.openDir("data", .{});
+    defer data_dir.close();
+    var main_todo_file = try data_dir.createFile(actual_path, .{ .truncate = false, .read = false });
+    defer main_todo_file.close();
+    const serialized = try todo.serialize();
+    defer allocator.free(serialized);
+    const stat = try main_todo_file.stat();
+    try main_todo_file.seekTo(stat.size);
+    try main_todo_file.writeAll("\n");
+    try main_todo_file.writeAll(serialized);
+}
+
 test "ReadEntireCSVAsTODOs" {
     const allocator = std.testing.allocator;
     // Prepare a sample CSV file
-    const sample_csv = "20210630-170000,o,,Finish the report,work,urgent\n20210701-120000,c,20210702-130000,Submit the assignment,school\n";
+    const sample_csv = "20210630-170000,o,,\"Finish the report, and do thing\",work,urgent\n20210701-120000,c,20210702-130000,\"Submit the assignment\",school\n";
     const cwd = std.fs.cwd();
     var todo_dir = try cwd.openDir(".todo", .{});
     defer todo_dir.close();
@@ -602,7 +732,7 @@ test "ReadEntireCSVAsTODOs" {
     var todo_list = try readEntireCSVAsTODOs(allocator, "sample.csv");
     defer todo_list.deinit(allocator);
     defer for (todo_list.items) |todo| todo.deinit();
-    try std.testing.expectEqualStrings("Finish the report", todo_list.items[0].description);
+    try std.testing.expectEqualStrings("Finish the report, and do thing", todo_list.items[0].description);
     try std.testing.expectEqualStrings("Submit the assignment", todo_list.items[1].description);
 }
 
@@ -614,6 +744,20 @@ test "ReadTODOWithHUID" {
     const todo = todo_opt orelse return error.TODOItemNotFound;
     defer todo.deinit();
     try std.testing.expectEqualStrings("Finish the report", todo.description);
+}
+
+test "AppendTODOToCSV" {
+    const allocator = std.testing.allocator;
+    const huid = try HUID.initstr("20210703-140000", allocator);
+    const tags = [_][]const u8{"personal"};
+    const todo = try TODO.init("Buy groceries", &tags, huid);
+    defer todo.deinit();
+    try appendTODOToCSV(allocator, "sample.csv", todo);
+    // Verify by reading back
+    const read_todo_opt = try readTODOWithHUID(allocator, "sample.csv", huid);
+    const read_todo = read_todo_opt orelse return error.TODOItemNotFound;
+    defer read_todo.deinit();
+    try std.testing.expectEqualStrings("Buy groceries", read_todo.description);
 }
 
 // TODO:
