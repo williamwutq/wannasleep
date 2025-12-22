@@ -29,7 +29,7 @@ Refer to `todo help` for detailed command usage and options.
 
 The "Usage" output should be below:
 ```
-Usage: todo <command> [<args>]
+Usage: todo [-v | --version] [-h | --help] <command> [<args>]
 Commands:
     add       Add a new todo item and print generated HUID
     author    Show author information
@@ -47,10 +47,15 @@ Commands:
     version   Show version information
 Common Options:
     -h, --help       Show this help message and exit
+    -v, --version    Show version information and exit
+    -d, --deadline   Specify the deadline for the todo item in HUID format
     -m, --message    Specify the description for the todo item (used with 'add' and 'edit' commands)
     -t, --tags       Comma-separated list of tags for the todo item
     -u, --huid       Specify the HUID of the todo item to operate on
-    -d, --deadline   Specify the deadline for the todo item in HUID format
+Short option grouping:
+    Most single-letter options can be grouped together. For example, -as is equivalent to -a -s.
+    When no command is specified, the supported options are -h/--help and -v/--version,
+    and option grouping between them is allowed (e.g., -vh is equivalent to -v -h).
 For detailed help on a specific command, run: todo <command> --help
 ```
 

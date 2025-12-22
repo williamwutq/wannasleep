@@ -975,14 +975,26 @@ test "AppendTODOToCSV" {
 
 pub fn addHelp() !void {
     const add_help_msg =
-        "Usage: todo add -m <message> [-t <tag1,tag2,...>] [-d <deadline>]\n\nAdds a new todo item with the specified description, optional tags, and optional deadline.\nGenerates a new HUID for the todo item and prints it.\nOptions:\n    -m, --message    Description of the todo item (required)\n    -t, --tags       Comma-separated list of tags for the todo item (optional)\n    -d, --deadline   Deadline for the todo item in HUID format (optional)\nExample:\n    $ todo add -m \"Finish the report\" -t work,urgent -d 20210701-120000\n    Todo item added with HUID: 20210630-170000\n";
+        \\Usage: todo add [-h | --help] -m <message> [-t <tag1,tag2,...>] [-d <deadline>]
+        \\
+        \\Adds a new todo item with the specified description, optional tags, and optional deadline.
+        \\Generates a new HUID for the todo item and prints it.
+        \\Options:
+        \\    -d, --deadline <deadline>     Deadline for the todo item in HUID format (optional)
+        \\    -h, --help                    When used alone, shows this help message and exits
+        \\    -m, --message <message>       Description of the todo item (required)
+        \\    -t, --tags <tag1,tag2,...>    Comma-separated list of tags for the todo item (optional)
+        \\Example:
+        \\    $ todo add -m "Finish the report" -t work,urgent -d 20210701-120000
+        \\    Todo item added with HUID: 20210630-170000
+        \\
+    ;
     try bufferedPrintln(add_help_msg);
 }
 
 pub fn addError(comptime message: []const u8) !void {
-    const add_error_msg =
-        "Error: " ++ message ++ "\nUsage: todo add -m <message> [-t <tag1,tag2,...>] [-d <deadline>]\nFor detailed help, run: todo add --help\n";
-    try bufferedPrintln(add_error_msg);
+    try bufferedPrintln("Error: " ++ message);
+    return addHelp();
 }
 
 pub fn addRun(
@@ -1013,7 +1025,22 @@ pub fn addRun(
 
 pub fn listHelp() !void {
     const list_help_msg =
-        "Usage: todo list [options]\n\nLists all todo items with optional filters and display options.\nOptions:\n    -a, --all       Show all items including completed ones\n    -s, --status    Show the completion status of each item\n    -u, --huid      Show the HUID of each item\n    -t, --tags      Show the tags associated with each item\n    -d, --deadline  Show the deadline of each item\nExample:\n    $ todo list -a -s -u\n";
+        \\Usage: todo list [-h | --help] [-a | --all] [-d | --deadline] [-s | --status] [-t | --tags] [-u | --huid]
+        \\
+        \\Lists all todo items with optional filters and display options.
+        \\Options:
+        \\    -a, --all       Show all items including completed ones
+        \\    -d, --deadline  Show the deadline of each item
+        \\    -h, --help      When used alone, shows this help message and exits
+        \\    -s, --status    Show the completion status of each item
+        \\    -t, --tags      Show the tags associated with each item
+        \\    -u, --huid      Show the HUID of each item
+        \\Short option grouping:
+        \\    All options can be combined, e.g., -asu is equivalent to -a -s -u
+        \\Example:
+        \\    $ todo list -a -s -u
+        \\
+    ;
     try bufferedPrintln(list_help_msg);
 }
 
@@ -1052,7 +1079,21 @@ pub fn listRun(
 
 pub fn remindHelp() !void {
     const remind_help_msg =
-        "Usage: todo remind -s <start_huid> -e <end_huid>\n\nReminds about todo items that are due within the specified time range.\nOptions:\n    -s, --start    Start of the time range in HUID format (inclusive)\n    -e, --end      End of the time range in HUID format (inclusive)\n    -u, --huid     Show the HUID of each item\n    -t, --tags     Show the tags associated with each item\n    -d, --deadline Show the deadline of each item\nExample:\n    $ todo remind -s 20210701-000000 -e 20210707-235959\n";
+        \\Usage: todo remind [-h | --help] [-s <start_huid>] [-e <end_huid>] [-u] [-t] [-d]
+        \\
+        \\Reminds about todo items that are due within the specified time range.
+        \\Options:
+        \\    -d, --deadline Show the deadline of each item
+        \\    -e, --end      End of the time range in HUID format (inclusive)
+        \\    -s, --start    Start of the time range in HUID format (inclusive)
+        \\    -t, --tags     Show the tags associated with each item
+        \\    -u, --huid     Show the HUID of each item
+        \\Short option grouping:
+        \\    -u, -t, and -d can be combined, e.g., -ud is equivalent to -u -d
+        \\Example:
+        \\    $ todo remind -s 20210701-000000 -e 20210707-235959
+        \\
+    ;
     try bufferedPrintln(remind_help_msg);
 }
 
@@ -1117,7 +1158,17 @@ pub fn remindRun(
 
 pub fn cancelHelp() !void {
     const cancel_help_msg =
-        "Usage: todo cancel [-u] <huid>\n\nCancels a todo item with the specified HUID.\nOptions:\n    -u, --huid    HUID of the todo item to cancel (required)\nExample:\n    $ todo cancel 20210630-170000\n    Todo item with HUID 20210630-170000 has been canceled.\n";
+        \\Usage: todo cancel [-h | --help] [-u | --huid] <huid>
+        \\
+        \\Cancels a todo item with the specified HUID.
+        \\Options:
+        \\    -h, --help            When used alone, show this help message and exit
+        \\    -u, --huid <huid>     HUID of the todo item to cancel (required, but the flag is optional)
+        \\Example:
+        \\    $ todo cancel 20210630-170000
+        \\    Todo item with HUID 20210630-170000 has been canceled.
+        \\
+    ;
     try bufferedPrintln(cancel_help_msg);
 }
 
@@ -1194,7 +1245,17 @@ pub fn cancelRun(
 
 pub fn finishHelp() !void {
     const finish_help_msg =
-        "Usage: todo finish [-u] <huid>\n\nMarks a todo item with the specified HUID as completed.\nOptions:\n    -u, --huid    HUID of the todo item to mark as completed (required)\nExample:\n    $ todo finish 20210630-170000\n    Todo item with HUID 20210630-170000 has been marked as completed.\n";
+        \\Usage: todo finish [-h | --help] [-u | --huid] <huid>
+        \\
+        \\Marks a todo item with the specified HUID as completed.
+        \\Options:
+        \\    -h, --help            When used alone, show this help message and exit
+        \\    -u, --huid <huid>     HUID of the todo item to mark as completed (required, but the flag is optional)
+        \\Example:
+        \\    $ todo finish 20210630-170000
+        \\    Todo item with HUID 20210630-170000 has been marked as completed.
+        \\
+    ;
     try bufferedPrintln(finish_help_msg);
 }
 
@@ -1273,7 +1334,18 @@ pub fn finishRun(
 
 pub fn removeHelp() !void {
     const remove_help_msg =
-        "Usage: todo remove [-u] <huid>\n\nRemoves a todo item with the specified HUID from the todo list.\nThe operation is permanent and not recoverable.\nOptions:\n    -u, --huid    HUID of the todo item to remove (required)\nExample:\n    $ todo remove 20210630-170000\n    Todo item with HUID 20210630-170000 has been removed.\n";
+        \\Usage: todo remove [-h | --help] [-u | --huid] <huid>
+        \\
+        \\Removes a todo item with the specified HUID from the todo list.
+        \\The operation is permanent and not recoverable.
+        \\Options:
+        \\    -h, --help            When used alone, show this help message and exit
+        \\    -u, --huid <huid>     HUID of the todo item to remove (required, but the flag is optional)
+        \\Example:
+        \\    $ todo remove 20210630-170000
+        \\    Todo item with HUID 20210630-170000 has been removed.
+        \\
+    ;
     try bufferedPrintln(remove_help_msg);
 }
 
@@ -1348,7 +1420,26 @@ pub fn removeRun(
 // grep: -b grep string in both description and tags, -i ignore case
 pub fn grepHelp() !void {
     const grep_help_msg =
-        "Usage: todo grep [options] <keyword>\n\nSearches todo items by keyword in description or tags with optional filters.\nOptions:\n    -t, --tags          Search keyword in tags\n    -m, --message       Search keyword in description of the TODO item\n    -u, --huid          HUID of the todo item to search for\n    -s, --status        Filter by completion status (o: open, c: completed, x: canceled)\n    -d, --deadline      Filter by exact deadline in HUID format\n    -a, --all           Include inactive items (completed or canceled)\n    -b, --both          Search keyword in both description and tags\n    -i, --ignore-case   Ignore case when searching for keyword\nExample:\n    $ todo grep -t work -i report\n";
+        \\Usage: todo grep [-h | --help] [options] [<keyword>]
+        \\
+        \\Searches todo items by keyword in description or tags with optional filters.
+        \\Options:
+        \\    -a, --all                 Include inactive items (completed or canceled)
+        \\    -b, --both                Search keyword in both description and tags
+        \\    -d, --deadline <deadline> Filter by deadline HUID
+        \\    -h, --help                When used alone, show this help message and exit
+        \\    -i, --ignore-case         Ignore case when searching for keyword
+        \\    -m, --message             Search keyword in description of the TODO item
+        \\    -s, --status <status>     Filter by status: 'o' for open, 'c' for completed, 'x' for canceled
+        \\    -t, --tags                Search keyword in tags of the TODO item
+        \\    -u, --huid <huid>         Filter by specific HUID
+        \\Short option grouping:
+        \\    -a, -b, -i, -m, -t can be combined, e.g., -abim is equivalent to -a -b -i -m
+        \\    Note that when -b is included, -m and -t must not be used in the same option group.
+        \\Example:
+        \\    $ todo grep -ti report
+        \\
+    ;
     try bufferedPrintln(grep_help_msg);
 }
 
@@ -1470,13 +1561,12 @@ pub fn grepRun(
 }
 
 // TODO:
-// todo grep
 // todo edit
 // todo defer
 
 pub fn help() !void {
     const help_msg =
-        \\Usage: todo <command> [<args>]
+        \\Usage: todo [-v | --version] [-h | --help] <command> [<args>]
         \\Commands:
         \\    add       Add a new todo item and print generated HUID
         \\    author    Show author information
@@ -1494,10 +1584,15 @@ pub fn help() !void {
         \\    version   Show version information
         \\Common Options:
         \\    -h, --help       Show this help message and exit
+        \\    -v, --version    Show version information and exit
+        \\    -d, --deadline   Specify the deadline for the todo item in HUID format
         \\    -m, --message    Specify the description for the todo item (used with 'add' and 'edit' commands)
         \\    -t, --tags       Comma-separated list of tags for the todo item
         \\    -u, --huid       Specify the HUID of the todo item to operate on
-        \\    -d, --deadline   Specify the deadline for the todo item in HUID format
+        \\Short option grouping:
+        \\    Most single-letter options can be grouped together. For example, -as is equivalent to -a -s.
+        \\    When no command is specified, the supported options are -h/--help and -v/--version,
+        \\    and option grouping between them is allowed (e.g., -vh is equivalent to -v -h).
         \\For detailed help on a specific command, run: todo <command> --help
     ;
     try bufferedPrintln(help_msg);
