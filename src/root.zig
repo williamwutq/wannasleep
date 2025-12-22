@@ -182,6 +182,17 @@ pub const TODO = struct {
             .deadline = self.deadline,
         };
     }
+    pub fn openTransferOwnerships(self: TODO) TODO {
+        return TODO{
+            .completed = false,
+            .canceled = false,
+            .description = self.description,
+            .tags = self.tags,
+            .allocator = self.allocator,
+            .huid = self.huid,
+            .deadline = self.deadline,
+        };
+    }
     pub fn changeDeadlineTransferOwnerships(self: TODO, new_deadline: ?HUID) TODO {
         if (self.deadline) |old_deadline| {
             old_deadline.deinit();
@@ -235,6 +246,27 @@ pub const TODO = struct {
             try tag_list.append(self.allocator, tag);
         }
         try tag_list.append(self.allocator, dup_tag);
+        const all_tags = try tag_list.toOwnedSlice(self.allocator);
+        self.allocator.free(self.tags);
+        return TODO{
+            .completed = self.completed,
+            .canceled = self.canceled,
+            .description = self.description,
+            .tags = all_tags,
+            .allocator = self.allocator,
+            .huid = self.huid,
+            .deadline = self.deadline,
+        };
+    }
+    pub fn addTagsTransferOwnerships(self: TODO, new_tags: []const []const u8) !TODO {
+        var tag_list = try std.ArrayList([]const u8).initCapacity(self.allocator, self.tags.len + new_tags.len);
+        for (self.tags) |tag| {
+            try tag_list.append(self.allocator, tag);
+        }
+        for (new_tags) |tag| {
+            const dup_tag = try self.allocator.dupe(u8, tag);
+            try tag_list.append(self.allocator, dup_tag);
+        }
         const all_tags = try tag_list.toOwnedSlice(self.allocator);
         self.allocator.free(self.tags);
         return TODO{
@@ -1023,6 +1055,111 @@ pub fn addRun(
     try bufferedPrintf("Todo item added with HUID: {s}\n", .{huid.id_str});
 }
 
+pub fn editHelp() !void {
+    const edit_help_msg =
+        \\Usage: todo edit [-h | --help] [-u] <huid> [-m <message>] [-n | --append] [-t <tag1,tag2,...>] [-d <deadline>] [-c | --complete] [-x | --cancel] [-o | --open]
+        \\
+        \\Edits an existing todo item identified by its HUID. You can update the description, tags, deadline, or mark it as complete/canceled.
+        \\Options:
+        \\    -c, --complete                    Mark the todo item as completed
+        \\    -d, --deadline [<deadline> | x]   New deadline for the todo item in HUID format (optional). Use 'x' to remove the deadline.
+        \\    -h, --help                        When used alone, shows this help message and exits
+        \\    -m, --message <message>           New description of the todo item (optional)
+        \\    -n, --append                      Append to the existing list of tags instead of replacing them
+        \\    -o, --open                        Mark the todo item as open (not completed nor canceled), overriding -c and -x
+        \\    -t, --tags <tag1,tag2,...>        New comma-separated list of tags for the todo item (optional)
+        \\    -u, --huid <huid>                 HUID of the todo item to edit (required)
+        \\    -x, --cancel                      Mark the todo item as canceled
+        \\Short option grouping:
+        \\    -c, -x, -o, and -n can be combined, e.g., -cn is equivalent to -c -n
+        \\    Note that when -o is included, -c and -x must not be used in the same option group.
+        \\Example:
+        \\    $ todo edit -u 20210630-170000 -m "Finish the updated report" -c
+        \\
+    ;
+    try bufferedPrintln(edit_help_msg);
+}
+
+pub fn editRun(
+    allocator: std.mem.Allocator,
+    huid_str: []const u8,
+    new_message: ?[]const u8,
+    tags: ?[]const []const u8,
+    append_tags: bool,
+    new_deadline_str: ?[]const u8,
+    mark_complete: bool,
+    mark_canceled: bool,
+    mark_open: bool,
+) !void {
+    var todo_list = try readEntireCSVAsTODOs(allocator, null);
+    defer todo_list.deinit(allocator);
+    defer {
+        for (todo_list.items) |todo| {
+            todo.deinit();
+        }
+    }
+    var idx: usize = 0;
+    var found: bool = false;
+    for (todo_list.items) |todo| {
+        if (std.mem.eql(u8, todo.huid.id_str, huid_str)) {
+            var new_todo = todo;
+            // Found the todo to edit
+            if (new_message) |msg| {
+                new_todo = try todo.changeDescriptionTransferOwnerships(msg);
+            }
+            if (tags) |tags_vals| {
+                if (append_tags) {
+                    new_todo = try new_todo.addTagsTransferOwnerships(tags_vals);
+                } else {
+                    new_todo = try new_todo.changeTagsTransferOwnerships(tags_vals);
+                }
+            }
+            if (new_deadline_str) |dl_str| {
+                if (std.mem.eql(u8, dl_str, "x")) {
+                    // Remove deadline
+                    new_todo = new_todo.changeDeadlineTransferOwnerships(null);
+                } else {
+                    const new_deadline_huid = HUID.initstr(dl_str, allocator) catch {
+                        try bufferedPrintln("Error: Invalid deadline HUID format.");
+                        return editHelp();
+                    };
+                    new_todo = new_todo.changeDeadlineTransferOwnerships(new_deadline_huid);
+                }
+            }
+            if (mark_complete) {
+                new_todo = new_todo.completeTransferOwnerships();
+            }
+            if (mark_canceled) {
+                new_todo = new_todo.canceledTransferOwnerships();
+            }
+            if (mark_open) {
+                new_todo = new_todo.openTransferOwnerships();
+            }
+            todo_list.items[idx] = new_todo;
+            found = true;
+            break;
+        }
+        idx += 1;
+    }
+    if (!found) {
+        try bufferedPrintln("Error: Todo item with the specified HUID not found.");
+        return editHelp();
+    }
+    const cwd = std.fs.cwd();
+    var todo_dir = try cwd.openDir(".todo", .{});
+    defer todo_dir.close();
+    var data_dir = try todo_dir.openDir("data", .{});
+    defer data_dir.close();
+    var main_todo_file = try data_dir.createFile("main.csv", .{ .truncate = true, .read = false });
+    defer main_todo_file.close();
+    for (todo_list.items) |item| {
+        const serialized = try item.serialize();
+        defer allocator.free(serialized);
+        try main_todo_file.writeAll(serialized);
+        try main_todo_file.writeAll("\n");
+    }
+}
+
 pub fn listHelp() !void {
     const list_help_msg =
         \\Usage: todo list [-h | --help] [-a | --all] [-d | --deadline] [-s | --status] [-t | --tags] [-u | --huid]
@@ -1559,10 +1696,6 @@ pub fn grepRun(
         todo.deinit();
     }
 }
-
-// TODO:
-// todo edit
-// todo defer
 
 pub fn help() !void {
     const help_msg =

@@ -120,6 +120,124 @@ pub fn main() !void {
                 else => return err,
             };
         }
+    } else if (std.mem.eql(u8, first, "edit")) {
+        var second = it.next() orelse {
+            try wannasleep.bufferedPrintln("No arguments provided for 'edit' command.");
+            try wannasleep.editHelp();
+            return;
+        };
+        if (std.mem.eql(u8, second, "--help") or std.mem.eql(u8, second, "-h")) {
+            try wannasleep.editHelp();
+        } else {
+            // Parse args: --huid, --message, --tags, --deadline, --complete, --cancel
+            var huid_str: ?[]const u8 = null;
+            var message: ?[]const u8 = null;
+            var tags_array = try std.ArrayList([]const u8).initCapacity(allocator, 4);
+            defer tags_array.deinit(allocator);
+            var deadline: ?[]const u8 = null;
+            var mark_complete = false;
+            var mark_canceled = false;
+            var mark_open = false;
+            var append_tags = false;
+            while (true) {
+                if (std.mem.eql(u8, second, "--huid") or std.mem.eql(u8, second, "-u")) {
+                    const huid_arg = it.next() orelse {
+                        try wannasleep.bufferedPrintln("No HUID provided for '--huid' flag.");
+                        return wannasleep.editHelp();
+                    };
+                    huid_str = huid_arg;
+                } else if (std.mem.eql(u8, second, "--message") or std.mem.eql(u8, second, "-m")) {
+                    const msg = it.next() orelse {
+                        try wannasleep.bufferedPrintln("No message provided for '--message' flag.");
+                        return wannasleep.editHelp();
+                    };
+                    message = msg;
+                } else if (std.mem.eql(u8, second, "--tags") or std.mem.eql(u8, second, "-t")) {
+                    const tags_str = it.next() orelse {
+                        try wannasleep.bufferedPrintln("No tags provided for '--tags' flag.");
+                        return wannasleep.editHelp();
+                    };
+                    var tags_split = std.mem.splitAny(u8, tags_str, ",");
+                    while (tags_split.next()) |tag| {
+                        try tags_array.append(allocator, tag);
+                    }
+                } else if (std.mem.eql(u8, second, "--append") or std.mem.eql(u8, second, "-n")) {
+                    append_tags = true;
+                } else if (std.mem.eql(u8, second, "--deadline") or std.mem.eql(u8, second, "-d")) {
+                    const dl = it.next() orelse {
+                        try wannasleep.bufferedPrintln("No deadline provided for '--deadline' flag.");
+                        return wannasleep.editHelp();
+                    };
+                    deadline = dl;
+                } else if (std.mem.eql(u8, second, "--complete") or std.mem.eql(u8, second, "-x")) {
+                    mark_complete = true;
+                } else if (std.mem.eql(u8, second, "--cancel") or std.mem.eql(u8, second, "-c")) {
+                    mark_canceled = true;
+                } else if (std.mem.eql(u8, second, "--open") or std.mem.eql(u8, second, "-o")) {
+                    mark_open = true;
+                } else if ((second.len > 2 or second.len <= 5) and second[0] == '-') {
+                    var seen = [_]bool{false} ** 4;
+                    var truth_count: usize = 0;
+                    for (second[1..]) |c| {
+                        switch (c) {
+                            'c' => if (seen[0]) break else {
+                                truth_count += 1;
+                                seen[0] = true;
+                            },
+                            'x' => if (seen[1]) break else {
+                                truth_count += 1;
+                                seen[1] = true;
+                            },
+                            'o' => if (seen[2]) break else {
+                                truth_count += 1;
+                                seen[2] = true;
+                            },
+                            'n' => if (seen[3]) break else {
+                                truth_count += 1;
+                                seen[3] = true;
+                            },
+                            else => break,
+                        }
+                    }
+                    if (truth_count != second.len - 1) {
+                        try wannasleep.bufferedPrintf("Error: Unknown flag {s} provided to 'edit' command.\n", .{second});
+                        return wannasleep.editHelp();
+                    }
+                    // If o is included, c and x must not be used
+                    if (seen[2]) {
+                        if (seen[0] or seen[1]) {
+                            try wannasleep.bufferedPrintf("Error: Conflicting flags provided to 'edit' command.\n", .{});
+                            return wannasleep.editHelp();
+                        }
+                    }
+                    if (seen[0]) mark_canceled = true;
+                    if (seen[1]) mark_complete = true;
+                    if (seen[2]) mark_open = true;
+                    if (seen[3]) append_tags = true;
+                } else {
+                    huid_str = second;
+                }
+                const next_arg = it.next() orelse break;
+                second = next_arg;
+            }
+            if (huid_str == null) {
+                try wannasleep.bufferedPrintln("Missing required HUID for the todo item to edit.");
+                return wannasleep.editHelp();
+            }
+            const tags = try tags_array.toOwnedSlice(allocator);
+            defer allocator.free(tags);
+            try wannasleep.editRun(
+                allocator,
+                huid_str.?,
+                message,
+                tags,
+                append_tags,
+                deadline,
+                mark_complete,
+                mark_canceled,
+                mark_open,
+            );
+        }
     } else if (std.mem.eql(u8, first, "list")) {
         var second = it.next() orelse {
             try wannasleep.listRun(allocator, false, false, false, false, false);
