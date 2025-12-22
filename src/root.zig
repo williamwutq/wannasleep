@@ -1344,6 +1344,131 @@ pub fn removeRun(
     }
 }
 
+// grep: normal flags -t tags, -u huid, -s status, -d deadline, -a include inactive, -m message keyword
+// grep: -b grep string in both description and tags, -i ignore case
+pub fn grepHelp() !void {
+    const grep_help_msg =
+        "Usage: todo grep [options] <keyword>\n\nSearches todo items by keyword in description or tags with optional filters.\nOptions:\n    -t, --tags          Search keyword in tags\n    -m, --message       Search keyword in description of the TODO item\n    -u, --huid          HUID of the todo item to search for\n    -s, --status        Filter by completion status (o: open, c: completed, x: canceled)\n    -d, --deadline      Filter by exact deadline in HUID format\n    -a, --all           Include inactive items (completed or canceled)\n    -b, --both          Search keyword in both description and tags\n    -i, --ignore-case   Ignore case when searching for keyword\nExample:\n    $ todo grep -t work -i report\n";
+    try bufferedPrintln(grep_help_msg);
+}
+
+pub fn grepRun(
+    allocator: std.mem.Allocator,
+    keyword: ?[]const u8,
+    search_in_tags: bool,
+    search_in_message: bool,
+    huid_str: ?[]const u8,
+    status_filter: ?u8,
+    deadline_str: ?[]const u8,
+    include_inactive: bool,
+    ignore_case: bool,
+) !void {
+    var todo_list = readEntireCSVAsTODOs(allocator, null) catch {
+        try bufferedPrint("Error: Failed to read todo list. Did you run 'todo init'?\n");
+        return listHelp();
+    };
+    defer todo_list.deinit(allocator);
+    var huid_filter: ?HUID = null;
+    if (huid_str) |huid_val| {
+        huid_filter = HUID.initstr(huid_val, allocator) catch {
+            try bufferedPrint("Error: Invalid HUID format for filter.\n");
+            return;
+        };
+    }
+    defer {
+        if (huid_filter) |huid_val| {
+            huid_val.deinit();
+        }
+    }
+    var deadline_filter: ?HUID = null;
+    if (deadline_str) |dl_val| {
+        deadline_filter = HUID.initstr(dl_val, allocator) catch {
+            try bufferedPrint("Error: Invalid deadline HUID format for filter.\n");
+            return;
+        };
+    }
+    defer {
+        if (deadline_filter) |dl_val| {
+            dl_val.deinit();
+        }
+    }
+    for (todo_list.items) |todo| {
+        if (!include_inactive and (todo.completed or todo.canceled)) {
+            todo.deinit();
+            continue;
+        }
+        if (huid_filter) |huid_val| {
+            if (todo.huid.compare(huid_val) != 0) {
+                todo.deinit();
+                continue;
+            }
+        }
+        if (status_filter) |status| {
+            if (status == 'o' and (todo.completed or todo.canceled)) {
+                todo.deinit();
+                continue;
+            } else if (status == 'c' and !todo.completed) {
+                todo.deinit();
+                continue;
+            } else if (status == 'x' and !todo.canceled) {
+                todo.deinit();
+                continue;
+            }
+        }
+        if (deadline_filter) |dl_val| {
+            if (todo.deadline) |todo_dl| {
+                if (todo_dl.compare(dl_val) != 0) {
+                    todo.deinit();
+                    continue;
+                }
+            } else {
+                todo.deinit();
+                continue;
+            }
+        }
+        var found_in_message = false;
+        if (keyword) |kw| {
+            if (search_in_message) {
+                if (ignore_case) {
+                    if (todo.matchesDescriptionInsensitive(kw)) {
+                        found_in_message = true;
+                    }
+                } else {
+                    if (todo.matchesDescription(kw)) {
+                        found_in_message = true;
+                    }
+                }
+            }
+            if (search_in_tags) {
+                if (ignore_case) {
+                    if (todo.matchesTagInsensitive(kw)) {
+                        found_in_message = true;
+                    }
+                } else {
+                    if (todo.matchesTag(kw)) {
+                        found_in_message = true;
+                    }
+                }
+            }
+        } else {
+            found_in_message = true; // No keyword means match all
+        }
+        if (found_in_message) {
+            const output = try todo.print(TODOPrintOptions{
+                .print_inactive = include_inactive,
+                .show_status = true,
+                .show_huid = true,
+                .show_tags = true,
+                .show_deadline = true,
+                .show_description = true,
+            });
+            defer allocator.free(output);
+            try bufferedPrintln(output);
+        }
+        todo.deinit();
+    }
+}
+
 // TODO:
 // todo grep
 // todo edit

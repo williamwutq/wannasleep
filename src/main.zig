@@ -128,7 +128,7 @@ pub fn main() !void {
         if (std.mem.eql(u8, second, "--help") or std.mem.eql(u8, second, "-h")) {
             try wannasleep.listHelp();
         } else {
-            // Parse flags: --show-status, --show-huid, --show-tags, --show-deadline, --print-inactive
+            // Parse flags: --status, --huid, --tags, --deadline, --all
             var show_status = false;
             var show_huid = false;
             var show_tags = false;
@@ -191,6 +191,130 @@ pub fn main() !void {
             }
             try wannasleep.listRun(allocator, print_inactive, show_status, show_huid, show_tags, show_deadline);
         }
+    } else if (std.mem.eql(u8, first, "grep")) {
+        var second = it.next() orelse {
+            try wannasleep.bufferedPrintln("Error: No arguments provided for 'grep' command.");
+            try wannasleep.grepHelp();
+            return;
+        };
+        if (std.mem.eql(u8, second, "--help") or std.mem.eql(u8, second, "-h")) {
+            try wannasleep.grepHelp();
+        } else {
+            // Parse flags
+            var search_tags = false;
+            var search_message = true;
+            var print_inactive = false;
+            var keyword: ?[]const u8 = null;
+            var huid_str: ?[]const u8 = null;
+            var status_filter_char: ?u8 = null;
+            var deadline_str: ?[]const u8 = null;
+            var ignore_case = false;
+            while (true) {
+                if (std.mem.eql(u8, second, "--status") or std.mem.eql(u8, second, "-s")) {
+                    const status_str = it.next() orelse {
+                        try wannasleep.bufferedPrint("Error: No status character provided for '--status' flag.\n");
+                        return wannasleep.grepHelp();
+                    };
+                    if (status_str.len != 1 or
+                        (status_str[0] != 'x' and status_str[0] != 'c' and status_str[0] != 'o'))
+                    {
+                        try wannasleep.bufferedPrintf("Error: Invalid status character {s} provided for '--status' flag.\n", .{status_str});
+                        return wannasleep.grepHelp();
+                    }
+                    status_filter_char = status_str[0];
+                } else if (std.mem.eql(u8, second, "--huid") or std.mem.eql(u8, second, "-u")) {
+                    const huid_str_arg = it.next() orelse {
+                        try wannasleep.bufferedPrint("Error: No HUID provided for '--huid' flag.\n");
+                        return wannasleep.grepHelp();
+                    };
+                    huid_str = huid_str_arg;
+                } else if (std.mem.eql(u8, second, "--deadline") or std.mem.eql(u8, second, "-d")) {
+                    const dl_str = it.next() orelse {
+                        try wannasleep.bufferedPrint("Error: No deadline HUID provided for '--deadline' flag.\n");
+                        return wannasleep.grepHelp();
+                    };
+                    deadline_str = dl_str;
+                } else if (std.mem.eql(u8, second, "--ignore-case") or std.mem.eql(u8, second, "-i")) {
+                    ignore_case = true;
+                } else if (std.mem.eql(u8, second, "--message") or std.mem.eql(u8, second, "-m")) {
+                    search_message = true;
+                } else if (std.mem.eql(u8, second, "--tags") or std.mem.eql(u8, second, "-t")) {
+                    search_tags = true;
+                } else if (std.mem.eql(u8, second, "--both") or std.mem.eql(u8, second, "-b") or
+                    std.mem.eql(u8, second, "-mt") or std.mem.eql(u8, second, "-tm"))
+                {
+                    search_message = true;
+                    search_tags = true;
+                } else if (std.mem.eql(u8, second, "--all") or std.mem.eql(u8, second, "-a")) {
+                    print_inactive = true;
+                } else if ((second.len > 2 or second.len <= 6) and second[0] == '-') {
+                    var seen = [_]bool{false} ** 5;
+                    var truth_count: usize = 0;
+                    for (second[1..]) |c| {
+                        switch (c) {
+                            'i' => if (seen[0]) break else {
+                                truth_count += 1;
+                                seen[0] = true;
+                            },
+                            'm' => if (seen[1]) break else {
+                                truth_count += 1;
+                                seen[1] = true;
+                            },
+                            't' => if (seen[2]) break else {
+                                truth_count += 1;
+                                seen[2] = true;
+                            },
+                            'b' => if (seen[3]) break else {
+                                truth_count += 1;
+                                seen[3] = true;
+                            },
+                            'a' => if (seen[4]) break else {
+                                truth_count += 1;
+                                seen[4] = true;
+                            },
+                            else => break,
+                        }
+                    }
+                    if (truth_count != second.len - 1) {
+                        try wannasleep.bufferedPrintf("Error: Unknown flag {s} provided to 'grep' command.\n", .{second});
+                        return wannasleep.grepHelp();
+                    }
+                    // If b, not m and t
+                    if (seen[3]) {
+                        if (seen[1] or seen[2]) {
+                            try wannasleep.bufferedPrintf("Error: Conflicting flags provided to 'grep' command.\n", .{});
+                            return wannasleep.grepHelp();
+                        }
+                    }
+                    if (seen[0]) ignore_case = true;
+                    if (seen[1]) search_message = true;
+                    if (seen[2]) search_tags = true;
+                    if (seen[3]) {
+                        search_message = true;
+                        search_tags = true;
+                    }
+                    if (seen[4]) print_inactive = true;
+                } else if (keyword == null) {
+                    keyword = second;
+                } else {
+                    try wannasleep.bufferedPrintf("Error: Unknown flag {s} provided to 'grep' command.\n", .{second});
+                    return wannasleep.grepHelp();
+                }
+                const next_arg = it.next() orelse break;
+                second = next_arg;
+            }
+            try wannasleep.grepRun(
+                allocator,
+                keyword,
+                search_tags,
+                search_message,
+                huid_str,
+                status_filter_char,
+                deadline_str,
+                print_inactive,
+                ignore_case,
+            );
+        }
     } else if (std.mem.eql(u8, first, "cancel")) {
         const second = it.next() orelse {
             try wannasleep.bufferedPrint("Error: No arguments provided for 'cancel' command.\n");
@@ -233,7 +357,7 @@ pub fn main() !void {
         if (std.mem.eql(u8, second, "--help") or std.mem.eql(u8, second, "-h")) {
             try wannasleep.remindHelp();
         } else {
-            // Parse flags: --show-huid, --show-tags, --show-deadline
+            // Parse flags: --huid, --tags, --deadline
             var show_huid = false;
             var show_tags = false;
             var show_deadline = false;
