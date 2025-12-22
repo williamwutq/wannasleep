@@ -263,6 +263,12 @@ pub fn main() !void {
                     show_deadline = true;
                 } else if (std.mem.eql(u8, second, "--all") or std.mem.eql(u8, second, "-a")) {
                     print_inactive = true;
+                } else if (std.mem.eql(u8, second, "--long") or std.mem.eql(u8, second, "-l")) {
+                    // As -dstu
+                    show_deadline = true;
+                    show_status = true;
+                    show_huid = true;
+                    show_tags = true;
                 } else if ((second.len > 2 or second.len <= 6) and second[0] == '-') {
                     var seen = [_]bool{false} ** 5;
                     var truth_count: usize = 0;

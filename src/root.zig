@@ -1162,13 +1162,14 @@ pub fn editRun(
 
 pub fn listHelp() !void {
     const list_help_msg =
-        \\Usage: todo list [-h | --help] [-a | --all] [-d | --deadline] [-s | --status] [-t | --tags] [-u | --huid]
+        \\Usage: todo list [-h | --help] [-l | --long] [-a | --all] [-d | --deadline] [-s | --status] [-t | --tags] [-u | --huid]
         \\
         \\Lists all todo items with optional filters and display options.
         \\Options:
         \\    -a, --all       Show all items including completed ones
         \\    -d, --deadline  Show the deadline of each item
         \\    -h, --help      When used alone, shows this help message and exits
+        \\    -l, --long      Show detailed information for each item (equivalent to -dstu)
         \\    -s, --status    Show the completion status of each item
         \\    -t, --tags      Show the tags associated with each item
         \\    -u, --huid      Show the HUID of each item
