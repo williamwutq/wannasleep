@@ -1175,6 +1175,7 @@ pub fn listHelp() !void {
         \\    -u, --huid      Show the HUID of each item
         \\Short option grouping:
         \\    All options can be combined, e.g., -asu is equivalent to -a -s -u
+        \\    Note that -l can only be combined with -a, as it implies all other display options.
         \\Example:
         \\    $ todo list -a -s -u
         \\

@@ -269,6 +269,13 @@ pub fn main() !void {
                     show_status = true;
                     show_huid = true;
                     show_tags = true;
+                } else if (std.mem.eql(u8, second, "-al") or std.mem.eql(u8, second, "-la")) {
+                    // As -adstu
+                    show_deadline = true;
+                    show_status = true;
+                    show_huid = true;
+                    show_tags = true;
+                    print_inactive = true;
                 } else if ((second.len > 2 or second.len <= 6) and second[0] == '-') {
                     var seen = [_]bool{false} ** 5;
                     var truth_count: usize = 0;
