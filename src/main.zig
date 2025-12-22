@@ -169,9 +169,9 @@ pub fn main() !void {
                         return wannasleep.editHelp();
                     };
                     deadline = dl;
-                } else if (std.mem.eql(u8, second, "--complete") or std.mem.eql(u8, second, "-x")) {
+                } else if (std.mem.eql(u8, second, "--complete") or std.mem.eql(u8, second, "-c")) {
                     mark_complete = true;
-                } else if (std.mem.eql(u8, second, "--cancel") or std.mem.eql(u8, second, "-c")) {
+                } else if (std.mem.eql(u8, second, "--cancel") or std.mem.eql(u8, second, "-x")) {
                     mark_canceled = true;
                 } else if (std.mem.eql(u8, second, "--open") or std.mem.eql(u8, second, "-o")) {
                     mark_open = true;
@@ -210,8 +210,8 @@ pub fn main() !void {
                             return wannasleep.editHelp();
                         }
                     }
-                    if (seen[0]) mark_canceled = true;
-                    if (seen[1]) mark_complete = true;
+                    if (seen[0]) mark_complete = true;
+                    if (seen[1]) mark_canceled = true;
                     if (seen[2]) mark_open = true;
                     if (seen[3]) append_tags = true;
                 } else {
