@@ -207,6 +207,21 @@ pub const TODO = struct {
             .deadline = new_deadline,
         };
     }
+    pub fn deferDeadlineTransferOwnerships(self: TODO, seconds: i64) !TODO {
+        var new_deadline: ?HUID = null;
+        if (self.deadline) |dl| {
+            new_deadline = try dl.add(seconds);
+        }
+        return TODO{
+            .completed = self.completed,
+            .canceled = self.canceled,
+            .description = self.description,
+            .tags = self.tags,
+            .allocator = self.allocator,
+            .huid = self.huid,
+            .deadline = new_deadline,
+        };
+    }
     pub fn changeDescriptionTransferOwnerships(self: TODO, new_description: []const u8) !TODO {
         const new_description_copy = try self.allocator.dupe(u8, new_description);
         self.allocator.free(self.description);
@@ -1552,6 +1567,132 @@ pub fn removeRun(
             };
         }
         try bufferedPrintf("Todo item with HUID {s} has been removed.\n", .{huid.id_str});
+    }
+}
+
+pub fn deferHelp() !void {
+    const defer_help_msg =
+        \\Usage: todo defer [-h | --help] [-u | --huid] <huid> [-w <weeks>] [-D <days>] [-H <hours>] [-m <minutes>] [-S <seconds>]
+        \\
+        \\Defers the deadline of a todo item with the specified HUID to a new deadline.
+        \\Options:
+        \\    -h, --help                      When used alone, show this help message and exit
+        \\    -H, --hours <hours>             Number of hours to extend the deadline by (used with -e)
+        \\    -m, --minutes <minutes>         Number of minutes to extend the deadline by (used with -e)
+        \\    -S, --seconds <seconds>         Number of seconds to extend the deadline by (used with -e)
+        \\    -w, --weeks <weeks>             Number of weeks to extend the deadline by (used with -e)
+        \\    -u, --huid <huid>               HUID of the todo item to defer (required, but the flag is optional)
+        \\Example:
+        \\    $ todo defer 20210630-170000 -e -D 3 -H 5
+        \\    Todo item with HUID 20210630-170000 has been deferred to new deadline 20210703-220000.
+        \\
+    ;
+    try bufferedPrintln(defer_help_msg);
+}
+
+pub fn deferRun(
+    allocator: std.mem.Allocator,
+    huid_str: []const u8,
+    weeks: u64,
+    days: u64,
+    hours: u64,
+    minutes: u64,
+    seconds: u64,
+) !void {
+    const huid = HUID.initstr(huid_str, allocator) catch {
+        try bufferedPrint("Error: Invalid HUID format.\n");
+        return deferHelp();
+    };
+    defer huid.deinit();
+    var delta_seconds: u64 = 0;
+    delta_seconds += seconds;
+    delta_seconds += minutes * 60;
+    delta_seconds += hours * 3600;
+    delta_seconds += days * 86400;
+    delta_seconds += weeks * 604800;
+    var todo_list = readEntireCSVAsTODOs(allocator, null) catch {
+        try bufferedPrint("Error: Failed to read todo list. Did you run 'todo init'?\n");
+        return deferHelp();
+    };
+    defer todo_list.deinit(allocator);
+    var found = false;
+    var copy_deadline: ?HUID = null;
+    var count: usize = 0;
+    for (todo_list.items) |todo| {
+        if (todo.huid.compare(huid) == 0) {
+            if (todo.completed) {
+                try bufferedPrintf("Error: Todo item with HUID {s} is already completed and cannot be deferred.\n", .{huid.id_str});
+                for (todo_list.items) |t| {
+                    t.deinit();
+                }
+                return;
+            } else if (todo.canceled) {
+                try bufferedPrintf("Error: Todo item with HUID {s} is canceled and cannot be deferred.\n", .{huid.id_str});
+                for (todo_list.items) |t| {
+                    t.deinit();
+                }
+                return;
+            }
+            _ = todo.deadline orelse {
+                try bufferedPrintf("Error: Todo item with HUID {s} has no deadline to extend.\n", .{huid.id_str});
+                for (todo_list.items) |t| {
+                    t.deinit();
+                }
+                return;
+            };
+            todo_list.items[count] = try todo.deferDeadlineTransferOwnerships(@as(i64, @intCast(delta_seconds)));
+            copy_deadline = todo_list.items[count].deadline;
+            found = true;
+        }
+        count += 1;
+    }
+    if (!found) {
+        try bufferedPrintf("Error: Todo item with HUID {s} not found.\n", .{huid.id_str});
+        for (todo_list.items) |todo| {
+            todo.deinit();
+        }
+        return;
+    } else {
+        // Rewrite the CSV file
+        const cwd = std.fs.cwd();
+        var todo_dir = try cwd.openDir(".todo", .{});
+        defer todo_dir.close();
+        var data_dir = try todo_dir.openDir("data", .{});
+        defer data_dir.close();
+        var main_todo_file = try data_dir.createFile("main.csv", .{ .truncate = true, .read = false });
+        defer main_todo_file.close();
+        defer {
+            for (todo_list.items) |todo| {
+                todo.deinit();
+            }
+        }
+        var first = true;
+        for (todo_list.items) |todo| {
+            const serialized = try todo.serialize();
+            defer allocator.free(serialized);
+            if (!first) {
+                main_todo_file.writeAll("\n") catch {
+                    try bufferedPrintln("Error: Failed to write to todo CSV file.");
+                    return;
+                };
+            } else {
+                first = false;
+            }
+            main_todo_file.writeAll(serialized) catch {
+                try bufferedPrintln("Error: Failed to write to todo CSV file.");
+                return;
+            };
+        }
+        if (copy_deadline) |new_dl| {
+            try bufferedPrintf("Todo item with HUID {s} has been deferred to new deadline {s}.\n", .{
+                huid.id_str,
+                new_dl.id_str,
+            });
+        } else {
+            try bufferedPrintf("Todo item with HUID {s} has been deferred to new deadline.\n", .{
+                huid.id_str,
+            });
+        }
     }
 }
 

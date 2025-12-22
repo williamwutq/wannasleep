@@ -555,6 +555,71 @@ pub fn main() !void {
         } else {
             try wannasleep.removeRun(allocator, second);
         }
+    } else if (std.mem.eql(u8, first, "defer")) {
+        var second = it.next() orelse {
+            try wannasleep.bufferedPrint("Error: No arguments provided for 'defer' command.\n");
+            try wannasleep.deferHelp();
+            return;
+        };
+        if (std.mem.eql(u8, second, "--help") or std.mem.eql(u8, second, "-h")) {
+            try wannasleep.deferHelp();
+        } else {
+            // Parse args: --huid, time delta
+            var huid_str: ?[]const u8 = null;
+            var weeks: u64 = 0;
+            var days: u64 = 0;
+            var hours: u64 = 0;
+            var minutes: u64 = 0;
+            var seconds: u64 = 0;
+            while (true) {
+                if (std.mem.eql(u8, second, "--huid") or std.mem.eql(u8, second, "-u")) {
+                    const huid_arg = it.next() orelse {
+                        try wannasleep.bufferedPrint("Error: No HUID provided for '--huid' flag.\n");
+                        return wannasleep.deferHelp();
+                    };
+                    huid_str = huid_arg;
+                } else if (std.mem.eql(u8, second, "--weeks") or std.mem.eql(u8, second, "-w")) {
+                    const weeks_str = it.next() orelse {
+                        try wannasleep.bufferedPrint("Error: No weeks value provided for '--weeks' flag.\n");
+                        return wannasleep.deferHelp();
+                    };
+                    weeks = try std.fmt.parseInt(u64, weeks_str, 10);
+                } else if (std.mem.eql(u8, second, "--days") or std.mem.eql(u8, second, "-D")) {
+                    const days_str = it.next() orelse {
+                        try wannasleep.bufferedPrint("Error: No days value provided for '--days' flag.\n");
+                        return wannasleep.deferHelp();
+                    };
+                    days = try std.fmt.parseInt(u64, days_str, 10);
+                } else if (std.mem.eql(u8, second, "--hours") or std.mem.eql(u8, second, "-H")) {
+                    const hours_str = it.next() orelse {
+                        try wannasleep.bufferedPrint("Error: No hours value provided for '--hours' flag.\n");
+                        return wannasleep.deferHelp();
+                    };
+                    hours = try std.fmt.parseInt(u64, hours_str, 10);
+                } else if (std.mem.eql(u8, second, "--minutes") or std.mem.eql(u8, second, "-m")) {
+                    const minutes_str = it.next() orelse {
+                        try wannasleep.bufferedPrint("Error: No minutes value provided for '--minutes' flag.\n");
+                        return wannasleep.deferHelp();
+                    };
+                    minutes = try std.fmt.parseInt(u64, minutes_str, 10);
+                } else if (std.mem.eql(u8, second, "--seconds") or std.mem.eql(u8, second, "-S")) {
+                    const seconds_str = it.next() orelse {
+                        try wannasleep.bufferedPrint("Error: No seconds value provided for '--seconds' flag.\n");
+                        return wannasleep.deferHelp();
+                    };
+                    seconds = try std.fmt.parseInt(u64, seconds_str, 10);
+                } else {
+                    huid_str = second;
+                }
+                const next_arg = it.next() orelse break;
+                second = next_arg;
+            }
+            if (huid_str == null) {
+                try wannasleep.bufferedPrint("Error: Missing required HUID for the todo item to defer.\n");
+                return wannasleep.deferHelp();
+            }
+            try wannasleep.deferRun(allocator, huid_str.?, weeks, days, hours, minutes, seconds);
+        }
     } else if (std.mem.eql(u8, first, "author")) {
         try wannasleep.author(); // Why would you put any other arguments after author?
     } else {
