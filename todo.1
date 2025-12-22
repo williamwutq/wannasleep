@@ -1,0 +1,375 @@
+.TH TODO 1 "December 21, 2025" "0.1.2" "WANNASLEEP USER COMMANDS"
+.PP
+TODO(1) \- User Commands \- TODO(1)
+.SH NAME
+todo \- a simple command\-line todo list manager
+.SH SYNOPSIS
+\f[B]todo\f[R] [\f[B]\-v\f[R] | \f[B]\(enversion\f[R]] [\f[B]\-h\f[R] |
+\f[B]\(enhelp\f[R]] \f[I]command\f[R] [\f[I]args\f[R]]
+.SH DESCRIPTION
+\f[B]todo\f[R] is a command\-line todo list manager written in Zig.
+It provides a simple yet powerful interface for managing tasks with
+support for tags, deadlines, and Human\-Readable Unique Identifiers
+(HUIDs).
+Todo lists are stored locally in a \f[B].todo\f[R] directory in the
+current working directory.
+.SH OPTIONS
+\f[B]\-h\f[R], \f[B]\(enhelp\f[R]
+.PD 0
+.P
+.PD
+Display help information and exit.
+.PP
+\f[B]\-v\f[R], \f[B]\(enversion\f[R]
+.PD 0
+.P
+.PD
+Display version information and exit.
+.PP
+\f[B]\-vh\f[R]
+.PD 0
+.P
+.PD
+Display both version and extended help information (options can be
+grouped).
+.SH COMMANDS
+.SS init
+\f[B]todo init\f[R]
+.PP
+Initialize a new todo list in the current directory by creating a
+\f[B].todo\f[R] directory with necessary files.
+If the directory already exists, existing files will not be overwritten.
+.SS add
+\f[B]todo add \-m\f[R] \f[I]message\f[R] [\f[B]\-t\f[R] \f[I]tags\f[R]]
+[\f[B]\-d\f[R] \f[I]deadline\f[R]]
+.PP
+Add a new todo item with the specified description, optional tags, and
+optional deadline.
+Returns the generated HUID for the new item.
+.PP
+\f[B]Options:\f[R] \- \f[B]\-m\f[R], \f[B]\(enmessage\f[R]
+\f[I]message\f[R] \- Description of the todo item (required) \-
+\f[B]\-t\f[R], \f[B]\(entags\f[R] \f[I]tag1,tag2,\&...\f[R] \-
+Comma\-separated list of tags (optional) \- \f[B]\-d\f[R],
+\f[B]\(endeadline\f[R] \f[I]HUID\f[R] \- Deadline in HUID format
+(optional) \- \f[B]\-h\f[R], \f[B]\(enhelp\f[R] \- Display help for this
+command
+.PP
+\f[B]Example:\f[R]
+.IP
+.EX
+$ todo add \-m \(dqFinish the report\(dq \-t work,urgent \-d 20210701\-120000
+Todo item added with HUID: 20210630\-170000
+.EE
+.SS list
+\f[B]todo list\f[R] [\f[B]\-l\f[R]] [\f[B]\-a\f[R]] [\f[B]\-d\f[R]]
+[\f[B]\-s\f[R]] [\f[B]\-t\f[R]] [\f[B]\-u\f[R]]
+.PP
+List all todo items with optional filters and display options.
+By default, only shows open (not completed or canceled) items.
+.PP
+\f[B]Options:\f[R] \- \f[B]\-a\f[R], \f[B]\(enall\f[R] \- Show all items
+including completed and canceled ones \- \f[B]\-d\f[R],
+\f[B]\(endeadline\f[R] \- Show the deadline of each item \-
+\f[B]\-h\f[R], \f[B]\(enhelp\f[R] \- Display help for this command \-
+\f[B]\-l\f[R], \f[B]\(enlong\f[R] \- Show detailed information
+(equivalent to \-dstu) \- \f[B]\-s\f[R], \f[B]\(enstatus\f[R] \- Show
+the completion status of each item \- \f[B]\-t\f[R], \f[B]\(entags\f[R]
+\- Show the tags associated with each item \- \f[B]\-u\f[R],
+\f[B]\(enhuid\f[R] \- Show the HUID of each item
+.PP
+\f[B]Note:\f[R] The \f[B]\-l\f[R] option can only be combined with
+\f[B]\-a\f[R]; it implies all other display options.
+.PP
+\f[B]Status Indicators:\f[R] \- \f[B][ ]\f[R] \- Open item \-
+\f[B][x]\f[R] \- Completed item \- \f[B][\-]\f[R] \- Canceled item
+.PP
+\f[B]Example:\f[R]
+.IP
+.EX
+$ todo list \-a \-s \-u
+.EE
+.SS finish
+\f[B]todo finish\f[R] [\f[B]\-u\f[R]] \f[I]huid\f[R]
+.PP
+Mark a todo item as completed.
+.PP
+\f[B]Options:\f[R] \- \f[B]\-u\f[R], \f[B]\(enhuid\f[R] \f[I]HUID\f[R]
+\- HUID of the item to complete (flag is optional) \- \f[B]\-h\f[R],
+\f[B]\(enhelp\f[R] \- Display help for this command
+.PP
+\f[B]Example:\f[R]
+.IP
+.EX
+$ todo finish 20210630\-170000
+Todo item with HUID 20210630\-170000 has been marked as completed.
+.EE
+.SS cancel
+\f[B]todo cancel\f[R] [\f[B]\-u\f[R]] \f[I]huid\f[R]
+.PP
+Cancel a todo item.
+Unlike completion, cancellation indicates the task was abandoned rather
+than finished.
+.PP
+\f[B]Options:\f[R] \- \f[B]\-u\f[R], \f[B]\(enhuid\f[R] \f[I]HUID\f[R]
+\- HUID of the item to cancel (flag is optional) \- \f[B]\-h\f[R],
+\f[B]\(enhelp\f[R] \- Display help for this command
+.PP
+\f[B]Example:\f[R]
+.IP
+.EX
+$ todo cancel 20210630\-170000
+Todo item with HUID 20210630\-170000 has been canceled.
+.EE
+.SS edit
+\f[B]todo edit \-u\f[R] \f[I]huid\f[R] [\f[B]\-m\f[R] \f[I]message\f[R]]
+[\f[B]\-t\f[R] \f[I]tags\f[R]] [\f[B]\-d\f[R] \f[I]deadline\f[R]]
+[\f[B]\-n\f[R]] [\f[B]\-c\f[R]] [\f[B]\-x\f[R]] [\f[B]\-o\f[R]]
+.PP
+Edit an existing todo item.
+You can update the description, tags, deadline, or change its status.
+.PP
+\f[B]Options:\f[R] \- \f[B]\-u\f[R], \f[B]\(enhuid\f[R] \f[I]HUID\f[R]
+\- HUID of the item to edit (required) \- \f[B]\-m\f[R],
+\f[B]\(enmessage\f[R] \f[I]message\f[R] \- New description (optional) \-
+\f[B]\-t\f[R], \f[B]\(entags\f[R] \f[I]tag1,tag2,\&...\f[R] \- New
+comma\-separated list of tags (optional) \- \f[B]\-d\f[R],
+\f[B]\(endeadline\f[R] \f[I]HUID\f[R] | \f[B]x\f[R] \- New deadline in
+HUID format, or `x' to remove (optional) \- \f[B]\-n\f[R],
+\f[B]\(enappend\f[R] \- Append to existing tags instead of replacing
+them \- \f[B]\-c\f[R], \f[B]\(encomplete\f[R] \- Mark the item as
+completed \- \f[B]\-x\f[R], \f[B]\(encancel\f[R] \- Mark the item as
+canceled \- \f[B]\-o\f[R], \f[B]\(enopen\f[R] \- Mark the item as open
+(overrides \-c and \-x) \- \f[B]\-h\f[R], \f[B]\(enhelp\f[R] \- Display
+help for this command
+.PP
+\f[B]Note:\f[R] Options \f[B]\-c\f[R], \f[B]\-x\f[R], \f[B]\-o\f[R], and
+\f[B]\-n\f[R] can be combined.
+When \f[B]\-o\f[R] is used, \f[B]\-c\f[R] and \f[B]\-x\f[R] cannot be in
+the same option group.
+.PP
+\f[B]Example:\f[R]
+.IP
+.EX
+$ todo edit \-u 20210630\-170000 \-m \(dqFinish the updated report\(dq \-c
+.EE
+.SS remove
+\f[B]todo remove\f[R] [\f[B]\-u\f[R]] \f[I]huid\f[R]
+.PP
+Permanently remove a todo item from the list.
+This operation cannot be undone.
+.PP
+\f[B]Options:\f[R] \- \f[B]\-u\f[R], \f[B]\(enhuid\f[R] \f[I]HUID\f[R]
+\- HUID of the item to remove (flag is optional) \- \f[B]\-h\f[R],
+\f[B]\(enhelp\f[R] \- Display help for this command
+.PP
+\f[B]Example:\f[R]
+.IP
+.EX
+$ todo remove 20210630\-170000
+Todo item with HUID 20210630\-170000 has been removed.
+.EE
+.SS defer
+\f[B]todo defer\f[R] [\f[B]\-u\f[R]] \f[I]huid\f[R] [\f[B]\-w\f[R]
+\f[I]weeks\f[R]] [\f[B]\-D\f[R] \f[I]days\f[R]] [\f[B]\-H\f[R]
+\f[I]hours\f[R]] [\f[B]\-m\f[R] \f[I]minutes\f[R]] [\f[B]\-S\f[R]
+\f[I]seconds\f[R]]
+.PP
+Defer the deadline of a todo item by a specified duration.
+The item must have an existing deadline.
+.PP
+\f[B]Options:\f[R] \- \f[B]\-u\f[R], \f[B]\(enhuid\f[R] \f[I]HUID\f[R]
+\- HUID of the item to defer (flag is optional) \- \f[B]\-w\f[R],
+\f[B]\(enweeks\f[R] \f[I]N\f[R] \- Number of weeks to extend \-
+\f[B]\-D\f[R], \f[B]\(endays\f[R] \f[I]N\f[R] \- Number of days to
+extend \- \f[B]\-H\f[R], \f[B]\(enhours\f[R] \f[I]N\f[R] \- Number of
+hours to extend \- \f[B]\-m\f[R], \f[B]\(enminutes\f[R] \f[I]N\f[R] \-
+Number of minutes to extend \- \f[B]\-S\f[R], \f[B]\(enseconds\f[R]
+\f[I]N\f[R] \- Number of seconds to extend \- \f[B]\-h\f[R],
+\f[B]\(enhelp\f[R] \- Display help for this command
+.PP
+\f[B]Example:\f[R]
+.IP
+.EX
+$ todo defer 20210630\-170000 \-D 3 \-H 5
+Todo item with HUID 20210630\-170000 has been deferred to new deadline 20210703\-220000.
+.EE
+.SS grep
+\f[B]todo grep\f[R] [\f[B]\-a\f[R]] [\f[B]\-b\f[R]] [\f[B]\-i\f[R]]
+[\f[B]\-m\f[R]] [\f[B]\-t\f[R]] [\f[B]\-s\f[R] \f[I]status\f[R]]
+[\f[B]\-d\f[R] \f[I]deadline\f[R]] [\f[B]\-u\f[R] \f[I]huid\f[R]]
+[\f[I]keyword\f[R]]
+.PP
+Search todo items by keyword in description or tags with optional
+filters.
+.PP
+\f[B]Options:\f[R] \- \f[B]\-a\f[R], \f[B]\(enall\f[R] \- Include
+inactive items (completed or canceled) \- \f[B]\-b\f[R],
+\f[B]\(enboth\f[R] \- Search keyword in both description and tags \-
+\f[B]\-i\f[R], \f[B]\(enignore\-case\f[R] \- Perform case\-insensitive
+search \- \f[B]\-m\f[R], \f[B]\(enmessage\f[R] \- Search keyword in
+description only \- \f[B]\-t\f[R], \f[B]\(entags\f[R] \- Search keyword
+in tags only \- \f[B]\-s\f[R], \f[B]\(enstatus\f[R] \f[I]status\f[R] \-
+Filter by status: `o' (open), `c' (completed), `x' (canceled) \-
+\f[B]\-d\f[R], \f[B]\(endeadline\f[R] \f[I]HUID\f[R] \- Filter by
+deadline \- \f[B]\-u\f[R], \f[B]\(enhuid\f[R] \f[I]HUID\f[R] \- Filter
+by specific HUID \- \f[B]\-h\f[R], \f[B]\(enhelp\f[R] \- Display help
+for this command
+.PP
+\f[B]Note:\f[R] Options \f[B]\-a\f[R], \f[B]\-b\f[R], \f[B]\-i\f[R],
+\f[B]\-m\f[R], and \f[B]\-t\f[R] can be combined.
+When \f[B]\-b\f[R] is used, \f[B]\-m\f[R] and \f[B]\-t\f[R] cannot be in
+the same option group.
+.PP
+\f[B]Example:\f[R]
+.IP
+.EX
+$ todo grep \-ti report
+.EE
+.SS remind
+\f[B]todo remind\f[R] [\f[B]\-s\f[R] \f[I]start\f[R]] [\f[B]\-e\f[R]
+\f[I]end\f[R]] [\f[B]\-u\f[R]] [\f[B]\-t\f[R]] [\f[B]\-d\f[R]]
+.PP
+Show todo items that are due within a specified time range.
+Useful for checking upcoming deadlines.
+.PP
+\f[B]Options:\f[R] \- \f[B]\-s\f[R], \f[B]\(enstart\f[R] \f[I]HUID\f[R]
+\- Start of time range in HUID format (inclusive) \- \f[B]\-e\f[R],
+\f[B]\(enend\f[R] \f[I]HUID\f[R] \- End of time range in HUID format
+(inclusive) \- \f[B]\-u\f[R], \f[B]\(enhuid\f[R] \- Show the HUID of
+each item \- \f[B]\-t\f[R], \f[B]\(entags\f[R] \- Show the tags of each
+item \- \f[B]\-d\f[R], \f[B]\(endeadline\f[R] \- Show the deadline of
+each item \- \f[B]\-h\f[R], \f[B]\(enhelp\f[R] \- Display help for this
+command
+.PP
+\f[B]Note:\f[R] Options \f[B]\-u\f[R], \f[B]\-t\f[R], and \f[B]\-d\f[R]
+can be combined.
+.PP
+\f[B]Example:\f[R]
+.IP
+.EX
+$ todo remind \-s 20210701\-000000 \-e 20210707\-235959
+.EE
+.SS huid
+\f[B]todo huid\f[R]
+.PP
+Generate a new Human\-Readable Unique Identifier (HUID) based on the
+current time.
+HUIDs use the format YYYYMMDD\-HHMMSS.
+.PP
+\f[B]Note:\f[R] To avoid conflicts, HUIDs should not be generated in
+rapid succession.
+.PP
+\f[B]Example:\f[R]
+.IP
+.EX
+$ todo huid
+20231220\-153045
+.EE
+.SS author
+\f[B]todo author\f[R]
+.PP
+Display author information.
+.SS version
+\f[B]todo version\f[R]
+.PP
+Display version information including the build version and Zig compiler
+version.
+.SS help
+\f[B]todo help\f[R]
+.PP
+Display the main help message.
+.SH HUID FORMAT
+Human\-Readable Unique Identifiers (HUIDs) use the format
+\f[B]YYYYMMDD\-HHMMSS\f[R], where: \- \f[B]YYYY\f[R] \- Four\-digit year
+\- \f[B]MM\f[R] \- Two\-digit month (01\-12) \- \f[B]DD\f[R] \-
+Two\-digit day (01\-31) \- \f[B]HH\f[R] \- Two\-digit hour in 24\-hour
+format (00\-23) \- \f[B]MM\f[R] \- Two\-digit minute (00\-59) \-
+\f[B]SS\f[R] \- Two\-digit second (00\-59)
+.PP
+\f[B]Example:\f[R] 20210630\-170000 represents June 30, 2021 at 5:00:00
+PM.
+.SH SHORT OPTION GROUPING
+Most single\-letter options can be grouped together for convenience: \-
+\f[B]\-asu\f[R] is equivalent to \f[B]\-a \-s \-u\f[R] \- \f[B]\-vh\f[R]
+is equivalent to \f[B]\-v \-h\f[R] \- \f[B]\-abim\f[R] is equivalent to
+\f[B]\-a \-b \-i \-m\f[R]
+.PP
+Some commands have restrictions on which options can be grouped
+together.
+Refer to individual command help for details.
+.SH FILES
+\f[B].todo/\f[R]
+.PD 0
+.P
+.PD
+Directory created by \f[B]todo init\f[R] that stores all todo list data.
+This directory should not be manually modified.
+.SH EXIT STATUS
+\f[B]0\f[R]
+.PD 0
+.P
+.PD
+Success
+.PP
+\f[B]1\f[R]
+.PD 0
+.P
+.PD
+General error (invalid arguments, item not found, etc.)
+.SH EXAMPLES
+Initialize a new todo list:
+.IP
+.EX
+$ todo init
+.EE
+.PP
+Add a todo item with tags and deadline:
+.IP
+.EX
+$ todo add \-m \(dqSubmit quarterly report\(dq \-t work,urgent \-d 20240115\-170000
+.EE
+.PP
+List all open items with full details:
+.IP
+.EX
+$ todo list \-l
+.EE
+.PP
+Search for items tagged with \(lqwork\(rq:
+.IP
+.EX
+$ todo grep \-t work
+.EE
+.PP
+Mark an item as completed:
+.IP
+.EX
+$ todo finish 20240115\-170000
+.EE
+.PP
+Defer a deadline by 2 days:
+.IP
+.EX
+$ todo defer 20240115\-170000 \-D 2
+.EE
+.PP
+Edit an item\(cqs description and add tags:
+.IP
+.EX
+$ todo edit \-u 20240115\-170000 \-m \(dqSubmit updated report\(dq \-t work,urgent,reviewed \-n
+.EE
+.PP
+Show items due this week:
+.IP
+.EX
+$ todo remind \-s 20240108\-000000 \-e 20240114\-235959 \-utd
+.EE
+.SH AUTHOR
+Created by William Wu
+.SH SEE ALSO
+Task management tools: \f[B]taskwarrior\f[R](1), \f[B]todo.txt\f[R](1)
+.SH BUGS
+Report bugs at the project repository or to the author.
+.SH VERSION
+todo (wannasleep) version 0.1.2 (Zig 0.15.2)
