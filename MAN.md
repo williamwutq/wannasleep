@@ -49,6 +49,12 @@ $ todo add -m "Finish the report" -t work,urgent -d 20210701-120000
 Todo item added with HUID: 20210630-170000
 ```
 
+## la | listall
+
+**todo la** | **todo listall**
+
+See all todo items with full details (equivalent to **todo list -l -a**).
+
 ## list
 
 **todo list** [**-l**] [**-a**] [**-d**] [**-s**] [**-t**] [**-u**]
