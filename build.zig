@@ -7,6 +7,11 @@ const std = @import("std");
 // build runner to parallelize the build automatically (and the cache system to
 // know when a step doesn't need to be re-run).
 pub fn build(b: *std.Build) void {
+    // Define the flag for specifying the name of the executable.
+    // This flag can be passed when invoking `zig build` like this:
+    // `zig build -Dname=my_executable`.
+    // If the flag is not provided, the default value "wannasleep" will be used.
+    const nameFlag = b.option([]const u8, "name", "Specify the name of the executable") orelse "wannasleep";
     // Standard target options allow the person running `zig build` to choose
     // what target to build for. Here we do not override the defaults, which
     // means any target is allowed, and the default is native. Other options
@@ -58,7 +63,7 @@ pub fn build(b: *std.Build) void {
     // If neither case applies to you, feel free to delete the declaration you
     // don't need and to put everything under a single module.
     const exe = b.addExecutable(.{
-        .name = "wannasleep",
+        .name = nameFlag,
         .root_module = b.createModule(.{
             // b.createModule defines a new module just like b.addModule but,
             // unlike b.addModule, it does not expose the module to consumers of
