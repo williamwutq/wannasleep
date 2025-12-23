@@ -22,7 +22,7 @@ release:
 
 nightly:
 	@echo "Ensure to update src/root.zig build_version_detail before running this target."
-	@zig build -Doptimize=ReleaseSafe $(BUILD_DIR) -Dtarget=aarch64-linux -Dname=aarch64-linux-${VERSION}-nightly-$(DATE)-debug
-	@zig build -Doptimize=ReleaseSafe $(BUILD_DIR) -Dtarget=x86_64-linux -Dname=x86_64-linux-${VERSION}-nightly-$(DATE)-debug
-	@zig build -Doptimize=ReleaseSafe $(BUILD_DIR) -Dtarget=aarch64-macos -Dname=aarch64-macos-${VERSION}-nightly-$(DATE)-debug
-	@zig build -Doptimize=ReleaseSafe $(BUILD_DIR) -Dtarget=x86_64-macos -Dname=x86_64-macos-${VERSION}-nightly-$(DATE)-debug
+	@zig build -Doptimize=Debug $(BUILD_DIR) -Dtarget=aarch64-linux -Dname=aarch64-linux-${VERSION}-nightly-$(DATE)-debug
+	@zig build -Doptimize=Debug $(BUILD_DIR) -Dtarget=x86_64-linux -Dname=x86_64-linux-${VERSION}-nightly-$(DATE)-debug
+	@zig build -Doptimize=Debug $(BUILD_DIR) -Dtarget=aarch64-macos -Dname=aarch64-macos-${VERSION}-nightly-$(DATE)-debug
+	@zig build -Doptimize=Debug $(BUILD_DIR) -Dtarget=x86_64-macos -Dname=x86_64-macos-${VERSION}-nightly-$(DATE)-debug
