@@ -2,7 +2,7 @@ const std = @import("std");
 const builtin = @import("builtin");
 
 const build_version = "0.1.2";
-const build_version_detail = "-nightly-2025-12-21";
+const build_version_detail = "-nightly-2025-12-22";
 
 pub const Errors = error{
     InvalidArguments,
