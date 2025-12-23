@@ -1022,14 +1022,14 @@ test "AppendTODOToCSV" {
 
 pub fn addHelp() !void {
     const add_help_msg =
-        \\Usage: todo add [-h | --help] -m <message> [-t <tag1,tag2,...>] [-d <deadline>]
+        \\Usage: todo add [-h | --help] [-m] <message> [-t <tag1,tag2,...>] [-d <deadline>]
         \\
         \\Adds a new todo item with the specified description, optional tags, and optional deadline.
         \\Generates a new HUID for the todo item and prints it.
         \\Options:
         \\    -d, --deadline <deadline>     Deadline for the todo item in HUID format (optional)
         \\    -h, --help                    When used alone, shows this help message and exits
-        \\    -m, --message <message>       Description of the todo item (required)
+        \\    -m, --message <message>       Description of the todo item (required, but the flag is optional)
         \\    -t, --tags <tag1,tag2,...>    Comma-separated list of tags for the todo item (optional)
         \\Example:
         \\    $ todo add -m "Finish the report" -t work,urgent -d 20210701-120000
@@ -1040,8 +1040,7 @@ pub fn addHelp() !void {
 }
 
 pub fn addError(comptime message: []const u8) !void {
-    try bufferedPrintln("Error: " ++ message);
-    return addHelp();
+    try bufferedPrintln("Error: " ++ message ++ "\nUse 'todo add --help' to see usage.");
 }
 
 pub fn addRun(
