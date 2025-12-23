@@ -45,6 +45,15 @@ pub fn main() !void {
         }
     } else if (std.mem.eql(u8, first, "-vh") or std.mem.eql(u8, first, "-hv")) {
         try wannasleep.versionHelp();
+    } else if (std.mem.eql(u8, first, "la") or std.mem.eql(u8, first, "listall")) {
+        try wannasleep.listRun(
+            allocator,
+            true,
+            true,
+            true,
+            true,
+            true,
+        );
     } else if (std.mem.eql(u8, first, "huid") or std.mem.eql(u8, first, "--huid") or std.mem.eql(u8, first, "-u")) {
         const second = it.next() orelse {
             try wannasleep.huidRun(allocator);
@@ -165,7 +174,17 @@ pub fn main() !void {
                     while (tags_split.next()) |tag| {
                         try tags_array.append(allocator, tag);
                     }
-                } else if (std.mem.eql(u8, second, "--append") or std.mem.eql(u8, second, "-n")) {
+                } else if (std.mem.eql(u8, second, "-tn")) {
+                    const tags_str = it.next() orelse {
+                        try wannasleep.bufferedPrintln("No tags provided for '-tn' (appending tags) flag.\nRun `todo edit --help` for more information.");
+                        return;
+                    };
+                    var tags_split = std.mem.splitAny(u8, tags_str, ",");
+                    while (tags_split.next()) |tag| {
+                        try tags_array.append(allocator, tag);
+                    }
+                    append_tags = true;
+                } else if (std.mem.eql(u8, second, "--append") or std.mem.eql(u8, second, "-n") or std.mem.eql(u8, second, "-a")) {
                     append_tags = true;
                 } else if (std.mem.eql(u8, second, "--deadline") or std.mem.eql(u8, second, "-d")) {
                     const dl = it.next() orelse {
@@ -179,8 +198,8 @@ pub fn main() !void {
                     mark_canceled = true;
                 } else if (std.mem.eql(u8, second, "--open") or std.mem.eql(u8, second, "-o")) {
                     mark_open = true;
-                } else if ((second.len > 2 or second.len <= 5) and second[0] == '-') {
-                    var seen = [_]bool{false} ** 4;
+                } else if ((second.len > 2 or second.len <= 6) and second[0] == '-') {
+                    var seen = [_]bool{false} ** 5;
                     var truth_count: usize = 0;
                     for (second[1..]) |c| {
                         switch (c) {
@@ -200,6 +219,10 @@ pub fn main() !void {
                                 truth_count += 1;
                                 seen[3] = true;
                             },
+                            'a' => if (seen[4]) break else {
+                                truth_count += 1;
+                                seen[4] = true;
+                            },
                             else => break,
                         }
                     }
@@ -218,6 +241,7 @@ pub fn main() !void {
                     if (seen[1]) mark_canceled = true;
                     if (seen[2]) mark_open = true;
                     if (seen[3]) append_tags = true;
+                    if (seen[4]) append_tags = true;
                 } else {
                     huid_str = second;
                 }

@@ -1071,10 +1071,11 @@ pub fn addRun(
 
 pub fn editHelp() !void {
     const edit_help_msg =
-        \\Usage: todo edit [-h | --help] [-u] <huid> [-m <message>] [-n | --append] [-t <tag1,tag2,...>] [-d <deadline>] [-c | --complete] [-x | --cancel] [-o | --open]
+        \\Usage: todo edit [-h | --help] [-u] <huid> [-m <message>] [-a | -n | --append] [-t <tag1,tag2,...>] [-d <deadline>] [-c | --complete] [-x | --cancel] [-o | --open]
         \\
         \\Edits an existing todo item identified by its HUID. You can update the description, tags, deadline, or mark it as complete/canceled.
         \\Options:
+        \\    -a, --append                      Append to the existing list of tags instead of replacing them, same as -n
         \\    -c, --complete                    Mark the todo item as completed
         \\    -d, --deadline [<deadline> | x]   New deadline for the todo item in HUID format (optional). Use 'x' to remove the deadline.
         \\    -h, --help                        When used alone, shows this help message and exits
@@ -1084,8 +1085,10 @@ pub fn editHelp() !void {
         \\    -t, --tags <tag1,tag2,...>        New comma-separated list of tags for the todo item (optional)
         \\    -u, --huid <huid>                 HUID of the todo item to edit (required)
         \\    -x, --cancel                      Mark the todo item as canceled
+        \\    -tn                               Special alias for -t -n to append tags, followed by the tags
         \\Short option grouping:
-        \\    -c, -x, -o, and -n can be combined, e.g., -cn is equivalent to -c -n
+        \\    -a, -c, -x, -o, and -n can be combined, e.g., -cn is equivalent to -c -n
+        \\    Note that when -a and -n are combined, they have the same effect as just using one of them.
         \\    Note that when -o is included, -c and -x must not be used in the same option group.
         \\Example:
         \\    $ todo edit -u 20210630-170000 -m "Finish the updated report" -c
@@ -1854,6 +1857,7 @@ pub fn help() !void {
         \\    huid      Generate a new HUID based on the current time
         \\    init      Creates an empty todo list in the current directory
         \\    list      List all todo items
+        \\    listall   List all todo items including completed ones (equivalent to 'list -la')
         \\    remind    Remind about todo items due within a time range
         \\    remove    Remove a todo item
         \\    version   Show version information
