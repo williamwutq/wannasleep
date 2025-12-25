@@ -1738,7 +1738,7 @@ pub fn grepRun(
 ) !void {
     var todo_list = readEntireCSVAsTODOs(allocator, null) catch {
         try bufferedPrint("Error: Failed to read todo list. Did you run 'todo init'?\n");
-        return listHelp();
+        return;
     };
     defer todo_list.deinit(allocator);
     var huid_filter: ?HUID = null;
