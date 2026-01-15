@@ -61,6 +61,8 @@ pub fn main() !void {
         };
         if (std.mem.eql(u8, second, "--help") or std.mem.eql(u8, second, "-h")) {
             try wannasleep.huidHelp();
+        } else if (std.mem.eql(u8, second, "info")) {
+            try wannasleep.huidExplain();
         } else {
             try wannasleep.huidRun(allocator);
         }

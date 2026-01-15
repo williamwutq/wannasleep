@@ -1510,13 +1510,11 @@ pub fn removeRun(
     huid_str: []const u8,
 ) !void {
     const huid = HUID.initstr(huid_str, allocator) catch {
-        try bufferedPrint("Error: Invalid HUID format.\n");
-        return removeHelp();
+        return bufferedPrint("Error: Invalid HUID format.\n");
     };
     defer huid.deinit();
     var todo_list = readEntireCSVAsTODOs(allocator, null) catch {
-        try bufferedPrint("Error: Failed to read todo list. Did you run 'todo init'?\n");
-        return removeHelp();
+        return bufferedPrint("Error: Failed to read todo list. Did you run 'todo init'?\n");
     };
     defer todo_list.deinit(allocator);
     var found = false;
@@ -1905,6 +1903,33 @@ pub fn huidHelp() !void {
     const huid_help_msg =
         "Usage: todo huid\n\nGenerates a new Human Readable Unique Identifier (HUID) based on the current time.\nThe HUID format is YYYYMMDD-HHMMSS, representing the year, month, day, hour, minute, and second of creation.\nTo avoid conflicts, you should not generated HUIDs very often.\nExample:\n    $ todo huid\n    20231220-153045\n";
     try bufferedPrintln(huid_help_msg);
+}
+
+pub fn huidExplain() !void {
+    const huid_explain_msg =
+        \\ HUID (Human Readable Unique Identifier):
+        \\
+        \\ A HUID is a unique identifier format designed to be both human-readable and sortable by creation time.
+        \\ The format of a HUID is: YYYYMMDD-HHMMSS
+        \\ Where:
+        \\    YYYY - 4-digit year
+        \\    MM   - 2-digit month (01 to 12)
+        \\    DD   - 2-digit day of the month (01 to 31)
+        \\    HH   - 2-digit hour in 24-hour format (00 to 23)
+        \\    MM   - 2-digit minute (00 to 59)
+        \\    SS   - 2-digit second (00 to 59)
+        \\
+        \\ Example HUID: 20231220-153045
+        \\ This HUID represents December 20, 2023 at 15:30:45 (3:30:45 PM).
+        \\ HUIDs are generated based on the current time when created.
+        \\ This means that HUIDs are unique as long as they are not generated multiple times within the same second.
+        \\ HUIDs are sortable in chronological order, making it easy to track the creation time of items.
+        \\
+        \\ Creator: Tsoding
+        \\ Original Video: https://www.youtube.com/watch?v=QH6KOEVnSZA
+        \\ Adapted by: William Wu (This is not an entirely faithful implementation of the original concept.)
+    ;
+    try bufferedPrintln(huid_explain_msg);
 }
 
 pub fn bufferedPrint(str: []const u8) !void {
