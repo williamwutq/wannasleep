@@ -1137,8 +1137,7 @@ pub fn editRun(
                     new_todo = new_todo.changeDeadlineTransferOwnerships(null);
                 } else {
                     const new_deadline_huid = HUID.initstr(dl_str, allocator) catch {
-                        try bufferedPrintln("Error: Invalid deadline HUID format.");
-                        return editHelp();
+                        return bufferedPrintln("Error: Invalid deadline HUID format.");
                     };
                     new_todo = new_todo.changeDeadlineTransferOwnerships(new_deadline_huid);
                 }
@@ -1159,8 +1158,7 @@ pub fn editRun(
         idx += 1;
     }
     if (!found) {
-        try bufferedPrintln("Error: Todo item with the specified HUID not found.");
-        return editHelp();
+        return bufferedPrintln("Error: Todo item with the specified HUID not found.");
     }
     const cwd = std.fs.cwd();
     var todo_dir = try cwd.openDir(".todo", .{});
@@ -1209,8 +1207,7 @@ pub fn listRun(
     show_deadline: bool,
 ) !void {
     var todo_list = readEntireCSVAsTODOs(allocator, null) catch {
-        try bufferedPrint("Error: Failed to read todo list. Did you run 'todo init'?\n");
-        return listHelp();
+        return bufferedPrint("Error: Failed to read todo list. Did you run 'todo init'?\n");
     };
     defer todo_list.deinit(allocator);
     for (todo_list.items) |todo| {
@@ -1265,8 +1262,7 @@ pub fn remindRun(
     var end_huid: ?HUID = null;
     if (start_huid_str) |start_huid_val| {
         start_huid = HUID.initstr(start_huid_val, allocator) catch {
-            try bufferedPrint("Error: Invalid start HUID format.\n");
-            return remindHelp();
+            return bufferedPrint("Error: Invalid start HUID format.\n");
         };
     } else {
         start_huid = HUID.initid(@divFloor(std.time.milliTimestamp(), 1000), allocator) catch {
@@ -1277,8 +1273,7 @@ pub fn remindRun(
     defer start_huid.deinit();
     if (end_huid_str) |end_huid_val| {
         end_huid = HUID.initstr(end_huid_val, allocator) catch {
-            try bufferedPrint("Error: Invalid end HUID format.\n");
-            return remindHelp();
+            return bufferedPrint("Error: Invalid end HUID format.\n");
         };
     }
     defer {
@@ -1287,8 +1282,7 @@ pub fn remindRun(
         }
     }
     var todo_list = readEntireCSVAsTODOs(allocator, null) catch {
-        try bufferedPrint("Error: Failed to read todo list. Did you run 'todo init'?\n");
-        return remindHelp();
+        return bufferedPrint("Error: Failed to read todo list. Did you run 'todo init'?\n");
     };
     defer todo_list.deinit(allocator);
     for (todo_list.items) |todo| {
@@ -1333,13 +1327,11 @@ pub fn cancelRun(
     huid_str: []const u8,
 ) !void {
     const huid = HUID.initstr(huid_str, allocator) catch {
-        try bufferedPrint("Error: Invalid HUID format.\n");
-        return cancelHelp();
+        return bufferedPrint("Error: Invalid HUID format.\n");
     };
     defer huid.deinit();
     var todo_list = readEntireCSVAsTODOs(allocator, null) catch {
-        try bufferedPrint("Error: Failed to read todo list. Did you run 'todo init'?\n");
-        return cancelHelp();
+        return bufferedPrint("Error: Failed to read todo list. Did you run 'todo init'?\n");
     };
     defer todo_list.deinit(allocator);
     var found = false;
@@ -1600,8 +1592,7 @@ pub fn deferRun(
     seconds: u64,
 ) !void {
     const huid = HUID.initstr(huid_str, allocator) catch {
-        try bufferedPrint("Error: Invalid HUID format.\n");
-        return deferHelp();
+        return bufferedPrint("Error: Invalid HUID format.\n");
     };
     defer huid.deinit();
     var delta_seconds: u64 = 0;
@@ -1611,8 +1602,7 @@ pub fn deferRun(
     delta_seconds += days * 86400;
     delta_seconds += weeks * 604800;
     var todo_list = readEntireCSVAsTODOs(allocator, null) catch {
-        try bufferedPrint("Error: Failed to read todo list. Did you run 'todo init'?\n");
-        return deferHelp();
+        return bufferedPrint("Error: Failed to read todo list. Did you run 'todo init'?\n");
     };
     defer todo_list.deinit(allocator);
     var found = false;
