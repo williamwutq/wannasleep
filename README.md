@@ -17,7 +17,7 @@ There are multiple ways to install this todo utility:
 ### Simple Installation
 Run on the command line:
 ```bash
-curl -fsSL https://raw.githubusercontent.com/williamwutq/wannasleep/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/williamwutq/wannasleep/main/install.sh | bash -s
 ```
 
 ### Clone and Install Manually

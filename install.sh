@@ -1,10 +1,10 @@
 #!/bin/bash
 
-WEB_PATH="https://raw.githubusercontent.com/williamwutq/wannasleep/main/"
+WEB_PATH="https://raw.githubusercontent.com/williamwutq/wannasleep/main"
 RECENT_BUILD="0.1.2-nightly-2026-01-15-debug"
 
 # Auto-update this script
-curl -s "${WEB_PATH}install.sh" -o /tmp/install.sh.new
+curl -s "$WEB_PATH/install.sh" -o /tmp/install.sh.new
 if ! cmp -s /tmp/install.sh.new "$0"; then
     echo "A new version of the install script is available. Updating..."
     mv /tmp/install.sh.new "$0"
@@ -42,24 +42,24 @@ case "$ARCH" in
 		;;
 esac
 
-FILE_NAME="${PREFIX}${RECENT_BUILD}"
-DOWNLOAD_URL="${WEB_PATH}builds/${FILE_NAME}"
+FILE_NAME="$PREFIX$RECENT_BUILD"
+DOWNLOAD_URL="$WEB_PATH/builds/$FILE_NAME"
 INSTALL_PATH="/usr/local/bin/todo"
 echo "Downloading the latest build from $DOWNLOAD_URL ..."
-curl -L "$DOWNLOAD_URL" -o "/tmp/${FILE_NAME}"
+curl -L "$DOWNLOAD_URL" -o "/tmp/$FILE_NAME"
 if [[ $? -ne 0 ]]; then
     echo "Failed to download. Please check your internet connection and try again."
-    rm -f "/tmp/${FILE_NAME}"
+    rm -f "/tmp/$FILE_NAME"
     exit 1
 fi
-curl -L "${WEB_PATH}todo.1" -o "/tmp/todo.1"
+curl -L "$WEB_PATH/todo.1" -o "/tmp/todo.1"
 if [[ $? -ne 0 ]]; then
     echo "Failed to download. Please check your internet connection and try again."
     rm -f "/tmp/todo.1"
     exit 1
 fi
-chmod +x "/tmp/${FILE_NAME}"
-sudo mv "/tmp/${FILE_NAME}" "$INSTALL_PATH"
+chmod +x "/tmp/$FILE_NAME"
+sudo mv "/tmp/$FILE_NAME" "$INSTALL_PATH"
 sudo mv "/tmp/todo.1" "/usr/local/share/man/man1/todo.1"
 
 echo "Installation complete. You can now use the 'todo' command."
