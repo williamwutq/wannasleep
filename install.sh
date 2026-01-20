@@ -10,7 +10,7 @@ if ! cmp -s /tmp/install.sh.new "$0"; then
     mv /tmp/install.sh.new "$0"
     chmod +x "$0"
     echo "Restarting the installation with the updated script..."
-    exec "$0" "$@"
+    exec "$0"
     exit 0
 else
     rm /tmp/install.sh.new
