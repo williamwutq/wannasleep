@@ -14,7 +14,7 @@ if [[ -f /tmp/install.sh.new ]] && ! cmp -s /tmp/install.sh.new "$SCRIPT_PATH"; 
     mv /tmp/install.sh.new "$SCRIPT_PATH"
     chmod +x "$SCRIPT_PATH"
     echo "Restarting the installation with the updated script..."
-    exec "$SCRIPT_PATH"
+    exec "./$SCRIPT_PATH"
     exit 0
 else
     rm /tmp/install.sh.new
