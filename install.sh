@@ -8,7 +8,7 @@ curl -s "$WEB_PATH/install.sh" -o /tmp/install.sh.new
 if [[ $? -ne 0 ]]; then
     echo "Failed to check for script updates. Proceeding with the current version."
 fi
-SCRIPT_PATH="$(realpath "${BASH_SOURCE[0]}")"
+SCRIPT_PATH="install.sh"
 if [[ -f /tmp/install.sh.new ]] && ! cmp -s /tmp/install.sh.new "$SCRIPT_PATH"; then
     echo "A new version of the install script is available. Updating..."
     mv /tmp/install.sh.new "$SCRIPT_PATH"
