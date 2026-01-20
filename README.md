@@ -11,7 +11,32 @@ Open Sourced in case you need it, licensed under the MIT License.
 - Filter and display options for listing TODO items.
 
 ## Installation
-For normal usage, you can either build from source or download pre-built binaries.
+
+There are multiple ways to install this todo utility:
+
+### Simple Installation
+Run on the command line:
+```bash
+curl -fsSL https://raw.githubusercontent.com/williamwutq/wannasleep/main/install.sh | bash
+```
+
+### Clone and Install Manually
+```bash
+git clone https://www.github.com/williamwutq/wannasleep
+cd wannasleep
+sudo cp builds/your-architecture-recent-version /usr/local/bin/todo
+# Replace your-architecture-recent-version with the appropriate binary file for your system
+# If you are unsure, run ls builds/ to see available binaries
+sudo chmod +x /usr/local/bin/todo
+sudo cp todo.1 /usr/local/share/man/man1/todo.1
+```
+
+### Build from Source
+Make sure you have Zig installed. Then run:
+```bash
+zig build -Drelease-safe
+```
+The compiled binary will be located at `./zig-out/bin/todo`.
 
 Reference Zig [Build Guide](https://ziglang.org/learn/build-system/) for building from source.
 

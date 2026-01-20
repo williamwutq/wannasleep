@@ -42,7 +42,7 @@ case "$ARCH" in
 		;;
 esac
 
-FILE_NAME="${PREFIX}-${RECENT_BUILD}"
+FILE_NAME="${PREFIX}${RECENT_BUILD}"
 DOWNLOAD_URL="${WEB_PATH}builds/${FILE_NAME}"
 INSTALL_PATH="/usr/local/bin/todo"
 echo "Downloading the latest build from $DOWNLOAD_URL ..."
