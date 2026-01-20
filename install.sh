@@ -1,11 +1,15 @@
 #!/bin/bash
 
 RECENT_BUILD="0.1.2-nightly-2026-01-15-debug"
+WEB_PATH="https://raw.githubusercontent.com/williamwutq/wannasleep/main"
 
 # Auto-update this script
 curl -s "$WEB_PATH/install.sh" -o /tmp/install.sh.new
+if [[ $? -ne 0 ]]; then
+    echo "Failed to check for script updates. Proceeding with the current version."
+fi
 SCRIPT_PATH="$(realpath "${BASH_SOURCE[0]}")"
-if ! cmp -s /tmp/install.sh.new "$SCRIPT_PATH"; then
+if [[ -f /tmp/install.sh.new ]] && ! cmp -s /tmp/install.sh.new "$SCRIPT_PATH"; then
     echo "A new version of the install script is available. Updating..."
     mv /tmp/install.sh.new "$SCRIPT_PATH"
     chmod +x "$SCRIPT_PATH"
