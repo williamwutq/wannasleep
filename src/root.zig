@@ -90,8 +90,10 @@ pub const TODO = struct {
         // This should be "description",tags... or description,tags...
         var description: []const u8 = undefined;
         var tags: []const u8 = undefined;
+        var is_quoted = false;
         if (rest.len > 0 and rest[0] == '"') {
             // Quoted description
+            is_quoted = true;
             var desc_end_index: usize = 0;
             var in_quotes: bool = false;
             var i: usize = 0;
@@ -110,14 +112,17 @@ pub const TODO = struct {
                 return Errors.InvalidTODOFormat;
             }
             // rest[0] == '"', so description is rest[1..desc_end_index]
-            description = rest[1..desc_end_index];
+            const raw_desc = rest[1..desc_end_index];
+            description = try unescapeFromCSV(allocator, raw_desc);
             // tags start after the closing quote and comma
             if (desc_end_index + 1 < rest.len and rest[desc_end_index + 1] == ',') {
                 tags = rest[desc_end_index + 2 ..];
             } else if (desc_end_index + 1 == rest.len) {
                 tags = "";
             } else {
+                allocator.free(description);
                 huid.deinit();
+                if (deadline) |dl| dl.deinit();
                 return Errors.InvalidTODOFormat;
             }
         } else {
@@ -150,10 +155,12 @@ pub const TODO = struct {
             try tag_list.append(allocator, dup_tag);
         }
         const all_tags = try tag_list.toOwnedSlice(allocator);
+        const final_description = try allocator.dupe(u8, description);
+        if (is_quoted) allocator.free(description);
         return TODO{
             .completed = completed,
             .canceled = canceled,
-            .description = try allocator.dupe(u8, description),
+            .description = final_description,
             .tags = all_tags,
             .allocator = allocator,
             .huid = huid,
@@ -315,7 +322,9 @@ pub const TODO = struct {
         } else {
             try writer.print(",", .{});
         }
-        try writer.print("\"{s}\"", .{self.description});
+        const escaped_desc = try escapeForCSV(self.allocator, self.description);
+        defer self.allocator.free(escaped_desc);
+        try writer.print("\"{s}\"", .{escaped_desc});
         for (self.tags) |tag| {
             try writer.print(",{s}", .{tag});
         }
@@ -409,6 +418,50 @@ pub const TODO = struct {
         return std.ascii.indexOfIgnoreCase(self.description, substr) != null;
     }
 };
+
+fn escapeForCSV(allocator: std.mem.Allocator, str: []const u8) ![]const u8 {
+    var result = try std.ArrayList(u8).initCapacity(allocator, str.len);
+    defer result.deinit(allocator);
+    for (str) |c| {
+        switch (c) {
+            '"' => try result.appendSlice(allocator, "\\\""),
+            '\\' => try result.appendSlice(allocator, "\\\\"),
+            '\n' => try result.appendSlice(allocator, "\\n"),
+            '\r' => try result.appendSlice(allocator, "\\r"),
+            '\t' => try result.appendSlice(allocator, "\\t"),
+            else => try result.append(allocator, c),
+        }
+    }
+    return try result.toOwnedSlice(allocator);
+}
+
+fn unescapeFromCSV(allocator: std.mem.Allocator, str: []const u8) ![]const u8 {
+    var result = try std.ArrayList(u8).initCapacity(allocator, str.len);
+    defer result.deinit(allocator);
+    var i: usize = 0;
+    while (i < str.len) {
+        const c = str[i];
+        if (c == '\\' and i + 1 < str.len) {
+            const next = str[i + 1];
+            switch (next) {
+                '"' => try result.append(allocator, '"'),
+                '\\' => try result.append(allocator, '\\'),
+                'n' => try result.append(allocator, '\n'),
+                'r' => try result.append(allocator, '\r'),
+                't' => try result.append(allocator, '\t'),
+                else => {
+                    // Invalid escape, keep the backslash
+                    try result.append(allocator, c);
+                },
+            }
+            i += 2;
+        } else {
+            try result.append(allocator, c);
+            i += 1;
+        }
+    }
+    return try result.toOwnedSlice(allocator);
+}
 
 test "TODO init and deinit" {
     const allocator = std.testing.allocator;
@@ -516,7 +569,6 @@ test "TODO empty tags missing comma" {
 }
 
 test "TODO quotes inside quotes" {
-    // TODO: allow escaping quotes inside quotes
     const allocator = std.testing.allocator;
     const row = "20210630-170000,o,,\"Finish the \\\"report\\\"\",work";
     const result = TODO.fromRow(row, allocator);
@@ -1003,7 +1055,7 @@ test "ReadTODOWithHUID" {
     const todo_opt = try readTODOWithHUID(allocator, "sample.csv", huid);
     const todo = todo_opt orelse return error.TODOItemNotFound;
     defer todo.deinit();
-    try std.testing.expectEqualStrings("Finish the report", todo.description);
+    try std.testing.expectEqualStrings("Finish the report, and do thing", todo.description);
 }
 
 test "AppendTODOToCSV" {
@@ -1023,7 +1075,7 @@ test "AppendTODOToCSV" {
 test "AppendTODOWithSpaceToCSV" {
     const allocator = std.testing.allocator;
     const huid = try HUID.initstr("20210812-140000", allocator);
-    const deadline = try HUID.initstr("2020815-122000", allocator);
+    const deadline = try HUID.initstr("20200815-120000", allocator);
     const tags = [_][]const u8{"personal"};
     const todo_string = "Buy groceries\nThe list of things to buy are:\n1. Bananas\n2. Chicken Wings\n3. Orange Juice";
     const todo = try TODO.init(todo_string, &tags, huid, deadline);
