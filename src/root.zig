@@ -1020,6 +1020,22 @@ test "AppendTODOToCSV" {
     try std.testing.expectEqualStrings("Buy groceries", read_todo.description);
 }
 
+test "AppendTODOWithSpaceToCSV" {
+    const allocator = std.testing.allocator;
+    const huid = try HUID.initstr("20210812-140000", allocator);
+    const deadline = try HUID.initstr("2020815-122000", allocator);
+    const tags = [_][]const u8{"personal"};
+    const todo_string = "Buy groceries\nThe list of things to buy are:\n1. Bananas\n2. Chicken Wings\n3. Orange Juice";
+    const todo = try TODO.init(todo_string, &tags, huid, deadline);
+    defer todo.deinit();
+    try appendTODOToCSV(allocator, "sample.csv", todo);
+    // Verify by reading back
+    const read_todo_opt = try readTODOWithHUID(allocator, "sample.csv", huid);
+    const read_todo = read_todo_opt orelse return error.TODOItemNotFound;
+    defer read_todo.deinit();
+    try std.testing.expectEqualStrings(todo_string, read_todo.description);
+}
+
 pub fn addHelp() !void {
     const add_help_msg =
         \\Usage: todo add [-h | --help] [-m] <message> [-t <tag1,tag2,...>] [-d <deadline>]
