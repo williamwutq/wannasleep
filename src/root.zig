@@ -976,7 +976,7 @@ pub fn readEntireCSVAsTODOs(
     defer data_dir.close();
     var main_todo_file = try data_dir.openFile(actual_path, .{});
     defer main_todo_file.close();
-    const big_string = try main_todo_file.readToEndAlloc(allocator, 8192);
+    const big_string = try main_todo_file.readToEndAlloc(allocator, std.math.maxInt(usize));
     defer allocator.free(big_string);
     var lines = std.mem.splitAny(u8, big_string, "\n");
     var todo_list = try std.ArrayList(TODO).initCapacity(allocator, 12);
