@@ -129,7 +129,7 @@ pub fn main() !void {
             const tags = try tags_array.toOwnedSlice(allocator);
             defer allocator.free(tags);
             wannasleep.addRun(allocator, message.?, tags, deadline) catch |err| switch (err) {
-                wannasleep.Errors.InvalidHUIDString => {
+                error.InvalidHUIDString => {
                     try wannasleep.addError("Invalid deadline HUID string.");
                 },
                 else => return err,
