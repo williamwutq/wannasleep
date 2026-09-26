@@ -4,43 +4,43 @@ const HUID = @import("huid.zig").HUID;
 const TODO = @import("todo.zig").TODO;
 const TODOPrintOptions = @import("todo.zig").TODOPrintOptions;
 const storage = @import("storage.zig");
-const io = @import("io.zig");
+const out = @import("io.zig");
 
 const build_version = "0.1.2";
 const build_version_detail = "-nightly-2026-01-15";
 
-pub fn init() !void {
-    const cwd = std.fs.cwd();
+pub fn init(io: std.Io) !void {
+    const cwd = std.Io.Dir.cwd();
     // Ensure the directory exists before opening it
-    cwd.makeDir(".todo") catch |err| {
-        if (err != std.fs.SelfExePathError.PathAlreadyExists) {
+    cwd.createDir(io, ".todo", .default_dir) catch |err| {
+        if (err != error.PathAlreadyExists) {
             return err;
         }
     };
-    var todo_dir = try cwd.openDir(".todo", .{});
-    defer todo_dir.close();
+    var todo_dir = try cwd.openDir(io, ".todo", .{});
+    defer todo_dir.close(io);
     // Ensure the /data directory exists
-    todo_dir.makeDir("data") catch |err| {
-        if (err != std.fs.SelfExePathError.PathAlreadyExists) {
+    todo_dir.createDir(io, "data", .default_dir) catch |err| {
+        if (err != error.PathAlreadyExists) {
             return err;
         }
     };
-    var data_dir = try todo_dir.openDir("data", .{});
-    defer data_dir.close();
+    var data_dir = try todo_dir.openDir(io, "data", .{});
+    defer data_dir.close(io);
     // Create the main.csv file if it doesn't exist
-    var main_todo_file = try data_dir.createFile("main.csv", .{});
-    defer main_todo_file.close();
-    try io.bufferedPrintln("Todo list initialized.");
+    var main_todo_file = try data_dir.createFile(io, "main.csv", .{ .truncate = false });
+    defer main_todo_file.close(io);
+    try out.bufferedPrintln(io, "Todo list initialized.");
     return;
 }
 
-pub fn initHelp() !void {
+pub fn initHelp(io: std.Io) !void {
     const init_help_msg =
         "Usage: todo init\n\nInitializes a new todo list in the current directory by creating a .todo directory with necessary files.\nIf the .todo directory already exists, it will not overwrite existing files.\nExample:\n    $ todo init\n    Todo list initialized.\n";
-    try io.bufferedPrintln(init_help_msg);
+    try out.bufferedPrintln(io, init_help_msg);
 }
 
-pub fn addHelp() !void {
+pub fn addHelp(io: std.Io) !void {
     const add_help_msg =
         \\Usage: todo add [-h | --help] [-m] <message> [-t <tag1,tag2,...>] [-d <deadline>]
         \\
@@ -56,20 +56,21 @@ pub fn addHelp() !void {
         \\    Todo item added with HUID: 20210630-170000
         \\
     ;
-    try io.bufferedPrintln(add_help_msg);
+    try out.bufferedPrintln(io, add_help_msg);
 }
 
-pub fn addError(comptime message: []const u8) !void {
-    try io.bufferedPrintln("Error: " ++ message ++ "\nUse 'todo add --help' to see usage.");
+pub fn addError(io: std.Io, comptime message: []const u8) !void {
+    try out.bufferedPrintln(io, "Error: " ++ message ++ "\nUse 'todo add --help' to see usage.");
 }
 
 pub fn addRun(
+    io: std.Io,
     allocator: std.mem.Allocator,
     message: []const u8,
     tags: []const []const u8,
     deadline_opt: ?[]const u8,
 ) !void {
-    const huid = try HUID.initid(@divFloor(std.time.milliTimestamp(), 1000), allocator);
+    const huid = try HUID.initid(std.Io.Clock.real.now(io).toSeconds(), allocator);
     var deadline_huid: ?HUID = null;
     if (deadline_opt) |dl_str| {
         const dl_huid = HUID.initstr(dl_str, allocator) catch |err| {
@@ -83,13 +84,13 @@ pub fn addRun(
         return err;
     };
     defer todo.deinit();
-    storage.appendTODOToCSV(allocator, null, todo) catch {
-        return addError("Failed to append todo item to CSV file.");
+    storage.appendTODOToCSV(io, allocator, null, todo) catch {
+        return addError(io, "Failed to append todo item to CSV file.");
     };
-    try io.bufferedPrintf("Todo item added with HUID: {s}\n", .{huid.id_str});
+    try out.bufferedPrintf(io, "Todo item added with HUID: {s}\n", .{huid.id_str});
 }
 
-pub fn editHelp() !void {
+pub fn editHelp(io: std.Io) !void {
     const edit_help_msg =
         \\Usage: todo edit [-h | --help] [-u] <huid> [-m <message>] [-a | -n | --append] [-t <tag1,tag2,...>] [-d <deadline>] [-c | --complete] [-x | --cancel] [-o | --open]
         \\
@@ -114,10 +115,11 @@ pub fn editHelp() !void {
         \\    $ todo edit -u 20210630-170000 -m "Finish the updated report" -c
         \\
     ;
-    try io.bufferedPrintln(edit_help_msg);
+    try out.bufferedPrintln(io, edit_help_msg);
 }
 
 pub fn editRun(
+    io: std.Io,
     allocator: std.mem.Allocator,
     huid_str: []const u8,
     new_message: ?[]const u8,
@@ -128,7 +130,7 @@ pub fn editRun(
     mark_canceled: bool,
     mark_open: bool,
 ) !void {
-    var todo_list = try storage.readEntireCSVAsTODOs(allocator, null);
+    var todo_list = try storage.readEntireCSVAsTODOs(io, allocator, null);
     defer todo_list.deinit(allocator);
     defer {
         for (todo_list.items) |todo| {
@@ -157,7 +159,7 @@ pub fn editRun(
                     new_todo = new_todo.changeDeadlineTransferOwnerships(null);
                 } else {
                     const new_deadline_huid = HUID.initstr(dl_str, allocator) catch {
-                        return io.bufferedPrintln("Error: Invalid deadline HUID format.");
+                        return out.bufferedPrintln(io, "Error: Invalid deadline HUID format.");
                     };
                     new_todo = new_todo.changeDeadlineTransferOwnerships(new_deadline_huid);
                 }
@@ -178,24 +180,12 @@ pub fn editRun(
         idx += 1;
     }
     if (!found) {
-        return io.bufferedPrintln("Error: Todo item with the specified HUID not found.");
+        return out.bufferedPrintln(io, "Error: Todo item with the specified HUID not found.");
     }
-    const cwd = std.fs.cwd();
-    var todo_dir = try cwd.openDir(".todo", .{});
-    defer todo_dir.close();
-    var data_dir = try todo_dir.openDir("data", .{});
-    defer data_dir.close();
-    var main_todo_file = try data_dir.createFile("main.csv", .{ .truncate = true, .read = false });
-    defer main_todo_file.close();
-    for (todo_list.items) |item| {
-        const serialized = try item.serialize();
-        defer allocator.free(serialized);
-        try main_todo_file.writeAll(serialized);
-        try main_todo_file.writeAll("\n");
-    }
+    try storage.overwriteCSVWithTODOs(io, allocator, null, todo_list.items);
 }
 
-pub fn listHelp() !void {
+pub fn listHelp(io: std.Io) !void {
     const list_help_msg =
         \\Usage: todo list [-h | --help] [-l | --long] [-a | --all] [-d | --deadline] [-s | --status] [-t | --tags] [-u | --huid]
         \\
@@ -215,10 +205,11 @@ pub fn listHelp() !void {
         \\    $ todo list -a -s -u
         \\
     ;
-    try io.bufferedPrintln(list_help_msg);
+    try out.bufferedPrintln(io, list_help_msg);
 }
 
 pub fn listRun(
+    io: std.Io,
     allocator: std.mem.Allocator,
     print_inactive: bool,
     show_status: bool,
@@ -226,8 +217,8 @@ pub fn listRun(
     show_tags: bool,
     show_deadline: bool,
 ) !void {
-    var todo_list = storage.readEntireCSVAsTODOs(allocator, null) catch {
-        return io.bufferedPrint("Error: Failed to read todo list. Did you run 'todo init'?\n");
+    var todo_list = storage.readEntireCSVAsTODOs(io, allocator, null) catch {
+        return out.bufferedPrint(io, "Error: Failed to read todo list. Did you run 'todo init'?\n");
     };
     defer todo_list.deinit(allocator);
     for (todo_list.items) |todo| {
@@ -245,12 +236,12 @@ pub fn listRun(
         };
         const output = try todo.print(options);
         defer allocator.free(output);
-        try io.bufferedPrintf("{s}\n", .{output});
+        try out.bufferedPrintf(io, "{s}\n", .{output});
         todo.deinit();
     }
 }
 
-pub fn remindHelp() !void {
+pub fn remindHelp(io: std.Io) !void {
     const remind_help_msg =
         \\Usage: todo remind [-h | --help] [-s <start_huid>] [-e <end_huid>] [-u] [-t] [-d]
         \\
@@ -267,10 +258,11 @@ pub fn remindHelp() !void {
         \\    $ todo remind -s 20210701-000000 -e 20210707-235959
         \\
     ;
-    try io.bufferedPrintln(remind_help_msg);
+    try out.bufferedPrintln(io, remind_help_msg);
 }
 
 pub fn remindRun(
+    io: std.Io,
     allocator: std.mem.Allocator,
     show_huid: bool,
     show_tags: bool,
@@ -282,18 +274,18 @@ pub fn remindRun(
     var end_huid: ?HUID = null;
     if (start_huid_str) |start_huid_val| {
         start_huid = HUID.initstr(start_huid_val, allocator) catch {
-            return io.bufferedPrint("Error: Invalid start HUID format.\n");
+            return out.bufferedPrint(io, "Error: Invalid start HUID format.\n");
         };
     } else {
-        start_huid = HUID.initid(@divFloor(std.time.milliTimestamp(), 1000), allocator) catch {
-            try io.bufferedPrint("Error: Failed to get current time for start HUID.\n");
+        start_huid = HUID.initid(std.Io.Clock.real.now(io).toSeconds(), allocator) catch {
+            try out.bufferedPrint(io, "Error: Failed to get current time for start HUID.\n");
             return;
         };
     }
     defer start_huid.deinit();
     if (end_huid_str) |end_huid_val| {
         end_huid = HUID.initstr(end_huid_val, allocator) catch {
-            return io.bufferedPrint("Error: Invalid end HUID format.\n");
+            return out.bufferedPrint(io, "Error: Invalid end HUID format.\n");
         };
     }
     defer {
@@ -301,8 +293,8 @@ pub fn remindRun(
             end_huid_val.deinit();
         }
     }
-    var todo_list = storage.readEntireCSVAsTODOs(allocator, null) catch {
-        return io.bufferedPrint("Error: Failed to read todo list. Did you run 'todo init'?\n");
+    var todo_list = storage.readEntireCSVAsTODOs(io, allocator, null) catch {
+        return out.bufferedPrint(io, "Error: Failed to read todo list. Did you run 'todo init'?\n");
     };
     defer todo_list.deinit(allocator);
     for (todo_list.items) |todo| {
@@ -319,14 +311,14 @@ pub fn remindRun(
                     .show_description = true,
                 });
                 defer allocator.free(output);
-                try io.bufferedPrintf("{s}\n", .{output});
+                try out.bufferedPrintf(io, "{s}\n", .{output});
             }
         }
         todo.deinit();
     }
 }
 
-pub fn cancelHelp() !void {
+pub fn cancelHelp(io: std.Io) !void {
     const cancel_help_msg =
         \\Usage: todo cancel [-h | --help] [-u | --huid] <huid>
         \\
@@ -339,19 +331,20 @@ pub fn cancelHelp() !void {
         \\    Todo item with HUID 20210630-170000 has been canceled.
         \\
     ;
-    try io.bufferedPrintln(cancel_help_msg);
+    try out.bufferedPrintln(io, cancel_help_msg);
 }
 
 pub fn cancelRun(
+    io: std.Io,
     allocator: std.mem.Allocator,
     huid_str: []const u8,
 ) !void {
     const huid = HUID.initstr(huid_str, allocator) catch {
-        return io.bufferedPrint("Error: Invalid HUID format.\n");
+        return out.bufferedPrint(io, "Error: Invalid HUID format.\n");
     };
     defer huid.deinit();
-    var todo_list = storage.readEntireCSVAsTODOs(allocator, null) catch {
-        return io.bufferedPrint("Error: Failed to read todo list. Did you run 'todo init'?\n");
+    var todo_list = storage.readEntireCSVAsTODOs(io, allocator, null) catch {
+        return out.bufferedPrint(io, "Error: Failed to read todo list. Did you run 'todo init'?\n");
     };
     defer todo_list.deinit(allocator);
     var found = false;
@@ -359,7 +352,7 @@ pub fn cancelRun(
     for (todo_list.items) |todo| {
         if (todo.huid.compare(huid) == 0) {
             if (todo.completed) {
-                try io.bufferedPrintf("Error: Todo item with HUID {s} is already completed and cannot be canceled.\n", .{huid.id_str});
+                try out.bufferedPrintf(io, "Error: Todo item with HUID {s} is already completed and cannot be canceled.\n", .{huid.id_str});
                 for (todo_list.items) |t| {
                     t.deinit();
                 }
@@ -371,47 +364,27 @@ pub fn cancelRun(
         count += 1;
     }
     if (!found) {
-        try io.bufferedPrintf("Error: Todo item with HUID {s} not found.\n", .{huid.id_str});
+        try out.bufferedPrintf(io, "Error: Todo item with HUID {s} not found.\n", .{huid.id_str});
         for (todo_list.items) |todo| {
             todo.deinit();
         }
         return;
     } else {
         // Rewrite the CSV file
-        const cwd = std.fs.cwd();
-        var todo_dir = try cwd.openDir(".todo", .{});
-        defer todo_dir.close();
-        var data_dir = try todo_dir.openDir("data", .{});
-        defer data_dir.close();
-        var main_todo_file = try data_dir.createFile("main.csv", .{ .truncate = true, .read = false });
-        defer main_todo_file.close();
         defer {
             for (todo_list.items) |todo| {
                 todo.deinit();
             }
         }
-        var first = true;
-        for (todo_list.items) |todo| {
-            const serialized = try todo.serialize();
-            defer allocator.free(serialized);
-            if (!first) {
-                main_todo_file.writeAll("\n") catch {
-                    try io.bufferedPrintln("Error: Failed to write to todo CSV file.");
-                    return;
-                };
-            } else {
-                first = false;
-            }
-            main_todo_file.writeAll(serialized) catch {
-                try io.bufferedPrintln("Error: Failed to write to todo CSV file.");
-                return;
-            };
-        }
-        try io.bufferedPrintf("Todo item with HUID {s} has been canceled.\n", .{huid.id_str});
+        storage.overwriteCSVWithTODOs(io, allocator, null, todo_list.items) catch {
+            try out.bufferedPrintln(io, "Error: Failed to write to todo CSV file.");
+            return;
+        };
+        try out.bufferedPrintf(io, "Todo item with HUID {s} has been canceled.\n", .{huid.id_str});
     }
 }
 
-pub fn finishHelp() !void {
+pub fn finishHelp(io: std.Io) !void {
     const finish_help_msg =
         \\Usage: todo finish [-h | --help] [-u | --huid] <huid>
         \\
@@ -424,21 +397,22 @@ pub fn finishHelp() !void {
         \\    Todo item with HUID 20210630-170000 has been marked as completed.
         \\
     ;
-    try io.bufferedPrintln(finish_help_msg);
+    try out.bufferedPrintln(io, finish_help_msg);
 }
 
 pub fn finishRun(
+    io: std.Io,
     allocator: std.mem.Allocator,
     huid_str: []const u8,
 ) !void {
     const huid = HUID.initstr(huid_str, allocator) catch {
-        try io.bufferedPrint("Error: Invalid HUID format.\n");
-        return finishHelp();
+        try out.bufferedPrint(io, "Error: Invalid HUID format.\n");
+        return finishHelp(io);
     };
     defer huid.deinit();
-    var todo_list = storage.readEntireCSVAsTODOs(allocator, null) catch {
-        try io.bufferedPrint("Error: Failed to read todo list. Did you run 'todo init'?\n");
-        return finishHelp();
+    var todo_list = storage.readEntireCSVAsTODOs(io, allocator, null) catch {
+        try out.bufferedPrint(io, "Error: Failed to read todo list. Did you run 'todo init'?\n");
+        return finishHelp(io);
     };
     defer todo_list.deinit(allocator);
     var found = false;
@@ -446,13 +420,13 @@ pub fn finishRun(
     for (todo_list.items) |todo| {
         if (todo.huid.compare(huid) == 0) {
             if (todo.completed) {
-                try io.bufferedPrintf("Error: Todo item with HUID {s} is already completed.\n", .{huid.id_str});
+                try out.bufferedPrintf(io, "Error: Todo item with HUID {s} is already completed.\n", .{huid.id_str});
                 for (todo_list.items) |t| {
                     t.deinit();
                 }
                 return;
             } else if (todo.canceled) {
-                try io.bufferedPrintf("Warning: Todo item with HUID {s} is canceled. Marking it as completed anyway.\n", .{huid.id_str});
+                try out.bufferedPrintf(io, "Warning: Todo item with HUID {s} is canceled. Marking it as completed anyway.\n", .{huid.id_str});
             }
             todo_list.items[count] = todo.completeTransferOwnerships();
             found = true;
@@ -460,47 +434,27 @@ pub fn finishRun(
         count += 1;
     }
     if (!found) {
-        try io.bufferedPrintf("Error: Todo item with HUID {s} not found.\n", .{huid.id_str});
+        try out.bufferedPrintf(io, "Error: Todo item with HUID {s} not found.\n", .{huid.id_str});
         for (todo_list.items) |todo| {
             todo.deinit();
         }
         return;
     } else {
         // Rewrite the CSV file
-        const cwd = std.fs.cwd();
-        var todo_dir = try cwd.openDir(".todo", .{});
-        defer todo_dir.close();
-        var data_dir = try todo_dir.openDir("data", .{});
-        defer data_dir.close();
-        var main_todo_file = try data_dir.createFile("main.csv", .{ .truncate = true, .read = false });
-        defer main_todo_file.close();
         defer {
             for (todo_list.items) |todo| {
                 todo.deinit();
             }
         }
-        var first = true;
-        for (todo_list.items) |todo| {
-            const serialized = try todo.serialize();
-            defer allocator.free(serialized);
-            if (!first) {
-                main_todo_file.writeAll("\n") catch {
-                    try io.bufferedPrintln("Error: Failed to write to todo CSV file.");
-                    return;
-                };
-            } else {
-                first = false;
-            }
-            main_todo_file.writeAll(serialized) catch {
-                try io.bufferedPrintln("Error: Failed to write to todo CSV file.");
-                return;
-            };
-        }
-        try io.bufferedPrintf("Todo item with HUID {s} has been marked as completed.\n", .{huid.id_str});
+        storage.overwriteCSVWithTODOs(io, allocator, null, todo_list.items) catch {
+            try out.bufferedPrintln(io, "Error: Failed to write to todo CSV file.");
+            return;
+        };
+        try out.bufferedPrintf(io, "Todo item with HUID {s} has been marked as completed.\n", .{huid.id_str});
     }
 }
 
-pub fn removeHelp() !void {
+pub fn removeHelp(io: std.Io) !void {
     const remove_help_msg =
         \\Usage: todo remove [-h | --help] [-u | --huid] <huid>
         \\
@@ -514,19 +468,20 @@ pub fn removeHelp() !void {
         \\    Todo item with HUID 20210630-170000 has been removed.
         \\
     ;
-    try io.bufferedPrintln(remove_help_msg);
+    try out.bufferedPrintln(io, remove_help_msg);
 }
 
 pub fn removeRun(
+    io: std.Io,
     allocator: std.mem.Allocator,
     huid_str: []const u8,
 ) !void {
     const huid = HUID.initstr(huid_str, allocator) catch {
-        return io.bufferedPrint("Error: Invalid HUID format.\n");
+        return out.bufferedPrint(io, "Error: Invalid HUID format.\n");
     };
     defer huid.deinit();
-    var todo_list = storage.readEntireCSVAsTODOs(allocator, null) catch {
-        return io.bufferedPrint("Error: Failed to read todo list. Did you run 'todo init'?\n");
+    var todo_list = storage.readEntireCSVAsTODOs(io, allocator, null) catch {
+        return out.bufferedPrint(io, "Error: Failed to read todo list. Did you run 'todo init'?\n");
     };
     defer todo_list.deinit(allocator);
     var found = false;
@@ -542,47 +497,27 @@ pub fn removeRun(
         }
     }
     if (!found) {
-        try io.bufferedPrintf("Error: Todo item with HUID {s} not found.\n", .{huid.id_str});
+        try out.bufferedPrintf(io, "Error: Todo item with HUID {s} not found.\n", .{huid.id_str});
         for (todo_list.items) |todo| {
             todo.deinit();
         }
         return;
     } else {
         // Rewrite the CSV file
-        const cwd = std.fs.cwd();
-        var todo_dir = try cwd.openDir(".todo", .{});
-        defer todo_dir.close();
-        var data_dir = try todo_dir.openDir("data", .{});
-        defer data_dir.close();
-        var main_todo_file = try data_dir.createFile("main.csv", .{ .truncate = true, .read = false });
-        defer main_todo_file.close();
         defer {
             for (todo_list.items[0..count]) |todo| {
                 todo.deinit();
             }
         }
-        var first = true;
-        for (todo_list.items[0..count]) |todo| {
-            const serialized = try todo.serialize();
-            defer allocator.free(serialized);
-            if (!first) {
-                main_todo_file.writeAll("\n") catch {
-                    try io.bufferedPrintln("Error: Failed to write to todo CSV file.");
-                    return;
-                };
-            } else {
-                first = false;
-            }
-            main_todo_file.writeAll(serialized) catch {
-                try io.bufferedPrintln("Error: Failed to write to todo CSV file.");
-                return;
-            };
-        }
-        try io.bufferedPrintf("Todo item with HUID {s} has been removed.\n", .{huid.id_str});
+        storage.overwriteCSVWithTODOs(io, allocator, null, todo_list.items[0..count]) catch {
+            try out.bufferedPrintln(io, "Error: Failed to write to todo CSV file.");
+            return;
+        };
+        try out.bufferedPrintf(io, "Todo item with HUID {s} has been removed.\n", .{huid.id_str});
     }
 }
 
-pub fn deferHelp() !void {
+pub fn deferHelp(io: std.Io) !void {
     const defer_help_msg =
         \\Usage: todo defer [-h | --help] [-u | --huid] <huid> [-w <weeks>] [-D <days>] [-H <hours>] [-m <minutes>] [-S <seconds>]
         \\
@@ -599,10 +534,11 @@ pub fn deferHelp() !void {
         \\    Todo item with HUID 20210630-170000 has been deferred to new deadline 20210703-220000.
         \\
     ;
-    try io.bufferedPrintln(defer_help_msg);
+    try out.bufferedPrintln(io, defer_help_msg);
 }
 
 pub fn deferRun(
+    io: std.Io,
     allocator: std.mem.Allocator,
     huid_str: []const u8,
     weeks: u64,
@@ -612,7 +548,7 @@ pub fn deferRun(
     seconds: u64,
 ) !void {
     const huid = HUID.initstr(huid_str, allocator) catch {
-        return io.bufferedPrint("Error: Invalid HUID format.\n");
+        return out.bufferedPrint(io, "Error: Invalid HUID format.\n");
     };
     defer huid.deinit();
     var delta_seconds: u64 = 0;
@@ -621,8 +557,8 @@ pub fn deferRun(
     delta_seconds += hours * 3600;
     delta_seconds += days * 86400;
     delta_seconds += weeks * 604800;
-    var todo_list = storage.readEntireCSVAsTODOs(allocator, null) catch {
-        return io.bufferedPrint("Error: Failed to read todo list. Did you run 'todo init'?\n");
+    var todo_list = storage.readEntireCSVAsTODOs(io, allocator, null) catch {
+        return out.bufferedPrint(io, "Error: Failed to read todo list. Did you run 'todo init'?\n");
     };
     defer todo_list.deinit(allocator);
     var found = false;
@@ -631,20 +567,20 @@ pub fn deferRun(
     for (todo_list.items) |todo| {
         if (todo.huid.compare(huid) == 0) {
             if (todo.completed) {
-                try io.bufferedPrintf("Error: Todo item with HUID {s} is already completed and cannot be deferred.\n", .{huid.id_str});
+                try out.bufferedPrintf(io, "Error: Todo item with HUID {s} is already completed and cannot be deferred.\n", .{huid.id_str});
                 for (todo_list.items) |t| {
                     t.deinit();
                 }
                 return;
             } else if (todo.canceled) {
-                try io.bufferedPrintf("Error: Todo item with HUID {s} is canceled and cannot be deferred.\n", .{huid.id_str});
+                try out.bufferedPrintf(io, "Error: Todo item with HUID {s} is canceled and cannot be deferred.\n", .{huid.id_str});
                 for (todo_list.items) |t| {
                     t.deinit();
                 }
                 return;
             }
             _ = todo.deadline orelse {
-                try io.bufferedPrintf("Error: Todo item with HUID {s} has no deadline to extend.\n", .{huid.id_str});
+                try out.bufferedPrintf(io, "Error: Todo item with HUID {s} has no deadline to extend.\n", .{huid.id_str});
                 for (todo_list.items) |t| {
                     t.deinit();
                 }
@@ -657,49 +593,29 @@ pub fn deferRun(
         count += 1;
     }
     if (!found) {
-        try io.bufferedPrintf("Error: Todo item with HUID {s} not found.\n", .{huid.id_str});
+        try out.bufferedPrintf(io, "Error: Todo item with HUID {s} not found.\n", .{huid.id_str});
         for (todo_list.items) |todo| {
             todo.deinit();
         }
         return;
     } else {
         // Rewrite the CSV file
-        const cwd = std.fs.cwd();
-        var todo_dir = try cwd.openDir(".todo", .{});
-        defer todo_dir.close();
-        var data_dir = try todo_dir.openDir("data", .{});
-        defer data_dir.close();
-        var main_todo_file = try data_dir.createFile("main.csv", .{ .truncate = true, .read = false });
-        defer main_todo_file.close();
         defer {
             for (todo_list.items) |todo| {
                 todo.deinit();
             }
         }
-        var first = true;
-        for (todo_list.items) |todo| {
-            const serialized = try todo.serialize();
-            defer allocator.free(serialized);
-            if (!first) {
-                main_todo_file.writeAll("\n") catch {
-                    try io.bufferedPrintln("Error: Failed to write to todo CSV file.");
-                    return;
-                };
-            } else {
-                first = false;
-            }
-            main_todo_file.writeAll(serialized) catch {
-                try io.bufferedPrintln("Error: Failed to write to todo CSV file.");
-                return;
-            };
-        }
+        storage.overwriteCSVWithTODOs(io, allocator, null, todo_list.items) catch {
+            try out.bufferedPrintln(io, "Error: Failed to write to todo CSV file.");
+            return;
+        };
         if (copy_deadline) |new_dl| {
-            try io.bufferedPrintf("Todo item with HUID {s} has been deferred to new deadline {s}.\n", .{
+            try out.bufferedPrintf(io, "Todo item with HUID {s} has been deferred to new deadline {s}.\n", .{
                 huid.id_str,
                 new_dl.id_str,
             });
         } else {
-            try io.bufferedPrintf("Todo item with HUID {s} has been deferred to new deadline.\n", .{
+            try out.bufferedPrintf(io, "Todo item with HUID {s} has been deferred to new deadline.\n", .{
                 huid.id_str,
             });
         }
@@ -708,7 +624,7 @@ pub fn deferRun(
 
 // grep: normal flags -t tags, -u huid, -s status, -d deadline, -a include inactive, -m message keyword
 // grep: -b grep string in both description and tags, -i ignore case
-pub fn grepHelp() !void {
+pub fn grepHelp(io: std.Io) !void {
     const grep_help_msg =
         \\Usage: todo grep [-h | --help] [options] [<keyword>]
         \\
@@ -730,10 +646,11 @@ pub fn grepHelp() !void {
         \\    $ todo grep -ti report
         \\
     ;
-    try io.bufferedPrintln(grep_help_msg);
+    try out.bufferedPrintln(io, grep_help_msg);
 }
 
 pub fn grepRun(
+    io: std.Io,
     allocator: std.mem.Allocator,
     keyword: ?[]const u8,
     search_in_tags: bool,
@@ -744,15 +661,15 @@ pub fn grepRun(
     include_inactive: bool,
     ignore_case: bool,
 ) !void {
-    var todo_list = storage.readEntireCSVAsTODOs(allocator, null) catch {
-        try io.bufferedPrint("Error: Failed to read todo list. Did you run 'todo init'?\n");
+    var todo_list = storage.readEntireCSVAsTODOs(io, allocator, null) catch {
+        try out.bufferedPrint(io, "Error: Failed to read todo list. Did you run 'todo init'?\n");
         return;
     };
     defer todo_list.deinit(allocator);
     var huid_filter: ?HUID = null;
     if (huid_str) |huid_val| {
         huid_filter = HUID.initstr(huid_val, allocator) catch {
-            try io.bufferedPrint("Error: Invalid HUID format for filter.\n");
+            try out.bufferedPrint(io, "Error: Invalid HUID format for filter.\n");
             return;
         };
     }
@@ -764,7 +681,7 @@ pub fn grepRun(
     var deadline_filter: ?HUID = null;
     if (deadline_str) |dl_val| {
         deadline_filter = HUID.initstr(dl_val, allocator) catch {
-            try io.bufferedPrint("Error: Invalid deadline HUID format for filter.\n");
+            try out.bufferedPrint(io, "Error: Invalid deadline HUID format for filter.\n");
             return;
         };
     }
@@ -844,13 +761,13 @@ pub fn grepRun(
                 .show_description = true,
             });
             defer allocator.free(output);
-            try io.bufferedPrintln(output);
+            try out.bufferedPrintln(io, output);
         }
         todo.deinit();
     }
 }
 
-pub fn help() !void {
+pub fn help(io: std.Io) !void {
     const help_msg =
         \\Usage: todo [-v | --version] [-h | --help] <command> [<args>]
         \\Commands:
@@ -882,40 +799,40 @@ pub fn help() !void {
         \\    and option grouping between them is allowed (e.g., -vh is equivalent to -v -h).
         \\For detailed help on a specific command, run: todo <command> --help
     ;
-    try io.bufferedPrintln(help_msg);
+    try out.bufferedPrintln(io, help_msg);
 }
 
-pub fn version() !void {
-    try io.bufferedPrintln("todo (wannasleep) version " ++ build_version ++ " (Zig " ++ builtin.zig_version_string ++ ")");
+pub fn version(io: std.Io) !void {
+    try out.bufferedPrintln(io, "todo (wannasleep) version " ++ build_version ++ " (Zig " ++ builtin.zig_version_string ++ ")");
 }
 
-pub fn versionHelp() !void {
+pub fn versionHelp(io: std.Io) !void {
     const version_help_msg =
         "todo (wannasleep) version " ++ build_version ++ "\nA simple command-line todo list manager written in Zig.\nBuild Information:\n    Build Version: " ++ build_version ++ build_version_detail ++ "\n    Zig Version: " ++ builtin.zig_version_string ++ "\nAuthor: William Wu";
-    try io.bufferedPrintln(version_help_msg);
+    try out.bufferedPrintln(io, version_help_msg);
 }
 
-pub fn author() !void {
-    try io.bufferedPrintln("Created by William Wu");
+pub fn author(io: std.Io) !void {
+    try out.bufferedPrintln(io, "Created by William Wu");
 }
 
-pub fn unknownCommand(cmd: []const u8) !void {
-    try io.bufferedPrintf("'{s}' is not a recognized command. See 'todo --help' for a list of available commands.\n", .{cmd});
+pub fn unknownCommand(io: std.Io, cmd: []const u8) !void {
+    try out.bufferedPrintf(io, "'{s}' is not a recognized command. See 'todo --help' for a list of available commands.\n", .{cmd});
 }
 
-pub fn huidRun(allocator: std.mem.Allocator) !void {
-    const huidid = try HUID.initid(@divFloor(std.time.milliTimestamp(), 1000), allocator);
+pub fn huidRun(io: std.Io, allocator: std.mem.Allocator) !void {
+    const huidid = try HUID.initid(std.Io.Clock.real.now(io).toSeconds(), allocator);
     defer huidid.deinit();
-    try io.bufferedPrintf("{s}\n", .{huidid.id_str});
+    try out.bufferedPrintf(io, "{s}\n", .{huidid.id_str});
 }
 
-pub fn huidHelp() !void {
+pub fn huidHelp(io: std.Io) !void {
     const huid_help_msg =
         "Usage: todo huid\n\nGenerates a new Human Readable Unique Identifier (HUID) based on the current time.\nThe HUID format is YYYYMMDD-HHMMSS, representing the year, month, day, hour, minute, and second of creation.\nTo avoid conflicts, you should not generated HUIDs very often.\nExample:\n    $ todo huid\n    20231220-153045\n";
-    try io.bufferedPrintln(huid_help_msg);
+    try out.bufferedPrintln(io, huid_help_msg);
 }
 
-pub fn huidExplain() !void {
+pub fn huidExplain(io: std.Io) !void {
     const huid_explain_msg =
         \\ HUID (Human Readable Unique Identifier):
         \\
@@ -939,5 +856,5 @@ pub fn huidExplain() !void {
         \\ Original Video: https://www.youtube.com/watch?v=QH6KOEVnSZA
         \\ Adapted by: William Wu (This is not an entirely faithful implementation of the original concept.)
     ;
-    try io.bufferedPrintln(huid_explain_msg);
+    try out.bufferedPrintln(io, huid_explain_msg);
 }

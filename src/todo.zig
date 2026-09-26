@@ -298,7 +298,7 @@ pub const TODO = struct {
     /// You do need to call allocator.free() on the returned slice after use,
     /// and you also need to deinitialize the "todo" item separately.
     pub fn serialize(self: TODO) ![]const u8 {
-        var allocating = std.io.Writer.Allocating.init(self.allocator);
+        var allocating = std.Io.Writer.Allocating.init(self.allocator);
         var writer = &allocating.writer;
         try writer.print("{s},", .{self.huid.id_str});
         if (self.completed) {
@@ -323,7 +323,7 @@ pub const TODO = struct {
         return result;
     }
     pub fn print(self: TODO, options: TODOPrintOptions) ![]const u8 {
-        var allocating = std.io.Writer.Allocating.init(self.allocator);
+        var allocating = std.Io.Writer.Allocating.init(self.allocator);
         var writer = &allocating.writer;
         if (options.show_status) {
             if (self.completed) {

@@ -10,7 +10,7 @@ pub const HUID = struct {
     allocator: std.mem.Allocator,
     /// Initialize a new HUID from the given unix time.
     ///
-    /// Note: to obtain the unix time, use std.time.milliTimestamp() / 1000
+    /// Note: to obtain the unix time, use std.Io.Clock.real.now(io).toSeconds()
     ///
     /// Must be deinitialized with deinit() to free the allocated string or altered with add()/sub()
     pub fn initid(
@@ -228,7 +228,7 @@ test "Test huid" {
 
 test "Test huid now" {
     const allocator = std.testing.allocator;
-    const now = @divFloor(std.time.milliTimestamp(), 1000);
+    const now = std.Io.Clock.real.now(std.testing.io).toSeconds();
     const huid = try HUID.initid(now, allocator);
     defer huid.deinit();
     const parsed_huid = try HUID.initstr(huid.id_str, allocator);

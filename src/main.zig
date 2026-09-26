@@ -1,52 +1,52 @@
 const std = @import("std");
 const wannasleep = @import("wannasleep");
 
-pub fn main() !void {
-    // Initialize the general purpose allocator
-    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-    const allocator = gpa.allocator();
-    defer _ = gpa.deinit();
+pub fn main(init: std.process.Init) !void {
+    // Use the runtime-provided general purpose allocator (leak-checked in Debug)
+    const allocator = init.gpa;
+    const io = init.io;
     // Initialize buffset
     var buffset = std.BufSet.init(allocator);
     defer buffset.deinit();
     // Parse command line arguments and run the application
-    var it = try std.process.argsWithAllocator(allocator); // ERR Out of memory
+    var it = try init.minimal.args.iterateAllocator(allocator); // ERR Out of memory
     defer it.deinit();
     _ = it.next() orelse {
         return error.InvalidArguments; // This should be program name and never fails
     };
     const first = it.next() orelse {
-        try wannasleep.help();
+        try wannasleep.help(io);
         return;
     };
     if (std.mem.eql(u8, first, "help") or std.mem.eql(u8, first, "--help") or std.mem.eql(u8, first, "-h")) {
         const second = it.next() orelse {
-            try wannasleep.help();
+            try wannasleep.help(io);
             return;
         };
         if (std.mem.eql(u8, second, "--version") or std.mem.eql(u8, second, "-v") or std.mem.eql(u8, second, "version")) {
-            try wannasleep.versionHelp();
+            try wannasleep.versionHelp(io);
         } else if (std.mem.eql(u8, second, "huid")) {
-            try wannasleep.versionHelp();
+            try wannasleep.versionHelp(io);
         } else if (std.mem.eql(u8, second, "init")) {
-            try wannasleep.initHelp();
+            try wannasleep.initHelp(io);
         } else {
-            try wannasleep.help();
+            try wannasleep.help(io);
         }
     } else if (std.mem.eql(u8, first, "version") or std.mem.eql(u8, first, "--version") or std.mem.eql(u8, first, "-v")) {
         const second = it.next() orelse {
-            try wannasleep.version();
+            try wannasleep.version(io);
             return;
         };
         if (std.mem.eql(u8, second, "--help") or std.mem.eql(u8, second, "-h")) {
-            try wannasleep.versionHelp();
+            try wannasleep.versionHelp(io);
         } else {
-            try wannasleep.version();
+            try wannasleep.version(io);
         }
     } else if (std.mem.eql(u8, first, "-vh") or std.mem.eql(u8, first, "-hv")) {
-        try wannasleep.versionHelp();
+        try wannasleep.versionHelp(io);
     } else if (std.mem.eql(u8, first, "la") or std.mem.eql(u8, first, "listall")) {
         try wannasleep.listRun(
+            io,
             allocator,
             true,
             true,
@@ -56,33 +56,33 @@ pub fn main() !void {
         );
     } else if (std.mem.eql(u8, first, "huid") or std.mem.eql(u8, first, "--huid") or std.mem.eql(u8, first, "-u")) {
         const second = it.next() orelse {
-            try wannasleep.huidRun(allocator);
+            try wannasleep.huidRun(io, allocator);
             return;
         };
         if (std.mem.eql(u8, second, "--help") or std.mem.eql(u8, second, "-h")) {
-            try wannasleep.huidHelp();
+            try wannasleep.huidHelp(io);
         } else if (std.mem.eql(u8, second, "info")) {
-            try wannasleep.huidExplain();
+            try wannasleep.huidExplain(io);
         } else {
-            try wannasleep.huidRun(allocator);
+            try wannasleep.huidRun(io, allocator);
         }
     } else if (std.mem.eql(u8, first, "init")) {
         const second = it.next() orelse {
-            try wannasleep.init();
+            try wannasleep.init(io);
             return;
         };
         if (std.mem.eql(u8, second, "--help") or std.mem.eql(u8, second, "-h")) {
-            try wannasleep.initHelp();
+            try wannasleep.initHelp(io);
         } else {
-            try wannasleep.init();
+            try wannasleep.init(io);
         }
     } else if (std.mem.eql(u8, first, "add")) {
         var second = it.next() orelse {
-            try wannasleep.addError("No arguments provided for 'add' command.");
+            try wannasleep.addError(io, "No arguments provided for 'add' command.");
             return;
         };
         if (std.mem.eql(u8, second, "--help") or std.mem.eql(u8, second, "-h")) {
-            try wannasleep.addHelp();
+            try wannasleep.addHelp(io);
             return;
         } else {
             // Parse args: --message, --tags, --deadline
@@ -93,13 +93,13 @@ pub fn main() !void {
             while (true) {
                 if (std.mem.eql(u8, second, "--message") or std.mem.eql(u8, second, "-m")) {
                     const msg = it.next() orelse {
-                        try wannasleep.addError("No message provided for '--message' flag.");
+                        try wannasleep.addError(io, "No message provided for '--message' flag.");
                         return;
                     };
                     message = msg;
                 } else if (std.mem.eql(u8, second, "--tags") or std.mem.eql(u8, second, "-t")) {
                     const tags_str = it.next() orelse {
-                        try wannasleep.addError("No tags provided for '--tags' flag.");
+                        try wannasleep.addError(io, "No tags provided for '--tags' flag.");
                         return;
                     };
                     var tags_split = std.mem.splitAny(u8, tags_str, ",");
@@ -108,13 +108,13 @@ pub fn main() !void {
                     }
                 } else if (std.mem.eql(u8, second, "--deadline") or std.mem.eql(u8, second, "-d")) {
                     const dl = it.next() orelse {
-                        try wannasleep.addError("No deadline provided for '--deadline' flag.");
+                        try wannasleep.addError(io, "No deadline provided for '--deadline' flag.");
                         return;
                     };
                     deadline = dl;
                 } else {
                     if (message != null) {
-                        try wannasleep.addError("Unknown flag provided to 'add' command.");
+                        try wannasleep.addError(io, "Unknown flag provided to 'add' command.");
                         return;
                     }
                     message = second;
@@ -123,25 +123,25 @@ pub fn main() !void {
                 second = next_arg;
             }
             if (message == null) {
-                try wannasleep.addError("Missing required description for the todo item.");
+                try wannasleep.addError(io, "Missing required description for the todo item.");
                 return;
             }
             const tags = try tags_array.toOwnedSlice(allocator);
             defer allocator.free(tags);
-            wannasleep.addRun(allocator, message.?, tags, deadline) catch |err| switch (err) {
+            wannasleep.addRun(io, allocator, message.?, tags, deadline) catch |err| switch (err) {
                 error.InvalidHUIDString => {
-                    try wannasleep.addError("Invalid deadline HUID string.");
+                    try wannasleep.addError(io, "Invalid deadline HUID string.");
                 },
                 else => return err,
             };
         }
     } else if (std.mem.eql(u8, first, "edit")) {
         var second = it.next() orelse {
-            try wannasleep.bufferedPrintln("No arguments provided for 'edit' command.\nRun `todo edit --help` for more information.");
+            try wannasleep.bufferedPrintln(io, "No arguments provided for 'edit' command.\nRun `todo edit --help` for more information.");
             return;
         };
         if (std.mem.eql(u8, second, "--help") or std.mem.eql(u8, second, "-h")) {
-            try wannasleep.editHelp();
+            try wannasleep.editHelp(io);
             return;
         } else {
             // Parse args: --huid, --message, --tags, --deadline, --complete, --cancel
@@ -157,19 +157,19 @@ pub fn main() !void {
             while (true) {
                 if (std.mem.eql(u8, second, "--huid") or std.mem.eql(u8, second, "-u")) {
                     const huid_arg = it.next() orelse {
-                        try wannasleep.bufferedPrintln("No HUID provided for '--huid' flag.\nRun `todo edit --help` for more information.");
+                        try wannasleep.bufferedPrintln(io, "No HUID provided for '--huid' flag.\nRun `todo edit --help` for more information.");
                         return;
                     };
                     huid_str = huid_arg;
                 } else if (std.mem.eql(u8, second, "--message") or std.mem.eql(u8, second, "-m")) {
                     const msg = it.next() orelse {
-                        try wannasleep.bufferedPrintln("No message provided for '--message' flag.\nRun `todo edit --help` for more information.");
+                        try wannasleep.bufferedPrintln(io, "No message provided for '--message' flag.\nRun `todo edit --help` for more information.");
                         return;
                     };
                     message = msg;
                 } else if (std.mem.eql(u8, second, "--tags") or std.mem.eql(u8, second, "-t")) {
                     const tags_str = it.next() orelse {
-                        try wannasleep.bufferedPrintln("No tags provided for '--tags' flag.\nRun `todo edit --help` for more information.");
+                        try wannasleep.bufferedPrintln(io, "No tags provided for '--tags' flag.\nRun `todo edit --help` for more information.");
                         return;
                     };
                     var tags_split = std.mem.splitAny(u8, tags_str, ",");
@@ -178,7 +178,7 @@ pub fn main() !void {
                     }
                 } else if (std.mem.eql(u8, second, "-tn")) {
                     const tags_str = it.next() orelse {
-                        try wannasleep.bufferedPrintln("No tags provided for '-tn' (appending tags) flag.\nRun `todo edit --help` for more information.");
+                        try wannasleep.bufferedPrintln(io, "No tags provided for '-tn' (appending tags) flag.\nRun `todo edit --help` for more information.");
                         return;
                     };
                     var tags_split = std.mem.splitAny(u8, tags_str, ",");
@@ -190,7 +190,7 @@ pub fn main() !void {
                     append_tags = true;
                 } else if (std.mem.eql(u8, second, "--deadline") or std.mem.eql(u8, second, "-d")) {
                     const dl = it.next() orelse {
-                        try wannasleep.bufferedPrintln("No deadline provided for '--deadline' flag.\nRun `todo edit --help` for more information.");
+                        try wannasleep.bufferedPrintln(io, "No deadline provided for '--deadline' flag.\nRun `todo edit --help` for more information.");
                         return;
                     };
                     deadline = dl;
@@ -229,13 +229,13 @@ pub fn main() !void {
                         }
                     }
                     if (truth_count != second.len - 1) {
-                        try wannasleep.bufferedPrintf("Error: Unknown flag {s} provided to 'edit' command.\nRun `todo edit --help` for more information.\n", .{second});
+                        try wannasleep.bufferedPrintf(io, "Error: Unknown flag {s} provided to 'edit' command.\nRun `todo edit --help` for more information.\n", .{second});
                         return;
                     }
                     // If o is included, c and x must not be used
                     if (seen[2]) {
                         if (seen[0] or seen[1]) {
-                            try wannasleep.bufferedPrintf("Error: Conflicting flags provided to 'edit' command.\nRun `todo edit --help` for more information.\n", .{});
+                            try wannasleep.bufferedPrintf(io, "Error: Conflicting flags provided to 'edit' command.\nRun `todo edit --help` for more information.\n", .{});
                             return;
                         }
                     }
@@ -251,12 +251,13 @@ pub fn main() !void {
                 second = next_arg;
             }
             if (huid_str == null) {
-                try wannasleep.bufferedPrintln("Missing required HUID for the todo item to edit.\nRun `todo edit --help` for more information.");
+                try wannasleep.bufferedPrintln(io, "Missing required HUID for the todo item to edit.\nRun `todo edit --help` for more information.");
                 return;
             }
             const tags = try tags_array.toOwnedSlice(allocator);
             defer allocator.free(tags);
             try wannasleep.editRun(
+                io,
                 allocator,
                 huid_str.?,
                 message,
@@ -270,11 +271,11 @@ pub fn main() !void {
         }
     } else if (std.mem.eql(u8, first, "list")) {
         var second = it.next() orelse {
-            try wannasleep.listRun(allocator, false, false, false, false, false);
+            try wannasleep.listRun(io, allocator, false, false, false, false, false);
             return;
         };
         if (std.mem.eql(u8, second, "--help") or std.mem.eql(u8, second, "-h")) {
-            try wannasleep.listHelp();
+            try wannasleep.listHelp(io);
         } else {
             // Parse flags: --status, --huid, --tags, --deadline, --all
             var show_status = false;
@@ -335,7 +336,7 @@ pub fn main() !void {
                         }
                     }
                     if (truth_count != second.len - 1) {
-                        try wannasleep.bufferedPrintf("Error: Unknown flag {s} provided to 'list' command.\nRun `todo list --help` for more information.\n", .{second});
+                        try wannasleep.bufferedPrintf(io, "Error: Unknown flag {s} provided to 'list' command.\nRun `todo list --help` for more information.\n", .{second});
                         return;
                     }
                     if (seen[0]) show_huid = true;
@@ -344,17 +345,18 @@ pub fn main() !void {
                     if (seen[3]) show_deadline = true;
                     if (seen[4]) print_inactive = true;
                 } else {
-                    try wannasleep.bufferedPrintf("Error: Unknown flag {s} provided to 'list' command.\nRun `todo list --help` for more information.\n", .{second});
+                    try wannasleep.bufferedPrintf(io, "Error: Unknown flag {s} provided to 'list' command.\nRun `todo list --help` for more information.\n", .{second});
                     return;
                 }
                 const next_arg = it.next() orelse break;
                 second = next_arg;
             }
-            try wannasleep.listRun(allocator, print_inactive, show_status, show_huid, show_tags, show_deadline);
+            try wannasleep.listRun(io, allocator, print_inactive, show_status, show_huid, show_tags, show_deadline);
         }
     } else if (std.mem.eql(u8, first, "grep")) {
         var second = it.next() orelse {
             try wannasleep.grepRun(
+                io,
                 allocator,
                 "",
                 false,
@@ -368,7 +370,7 @@ pub fn main() !void {
             return;
         };
         if (std.mem.eql(u8, second, "--help") or std.mem.eql(u8, second, "-h")) {
-            try wannasleep.grepHelp();
+            try wannasleep.grepHelp(io);
         } else {
             // Parse flags
             var search_tags = false;
@@ -382,25 +384,25 @@ pub fn main() !void {
             while (true) {
                 if (std.mem.eql(u8, second, "--status") or std.mem.eql(u8, second, "-s")) {
                     const status_str = it.next() orelse {
-                        try wannasleep.bufferedPrint("Error: No status character provided for '--status' flag.\nRun `todo grep --help` for more information.\n");
+                        try wannasleep.bufferedPrint(io, "Error: No status character provided for '--status' flag.\nRun `todo grep --help` for more information.\n");
                         return;
                     };
                     if (status_str.len != 1 or
                         (status_str[0] != 'x' and status_str[0] != 'c' and status_str[0] != 'o'))
                     {
-                        try wannasleep.bufferedPrintf("Error: Invalid status character {s} provided for '--status' flag.\nRun `todo grep --help` for more information.\n", .{status_str});
+                        try wannasleep.bufferedPrintf(io, "Error: Invalid status character {s} provided for '--status' flag.\nRun `todo grep --help` for more information.\n", .{status_str});
                         return;
                     }
                     status_filter_char = status_str[0];
                 } else if (std.mem.eql(u8, second, "--huid") or std.mem.eql(u8, second, "-u")) {
                     const huid_str_arg = it.next() orelse {
-                        try wannasleep.bufferedPrint("Error: No HUID provided for '--huid' flag.\nRun `todo grep --help` for more information.\n");
+                        try wannasleep.bufferedPrint(io, "Error: No HUID provided for '--huid' flag.\nRun `todo grep --help` for more information.\n");
                         return;
                     };
                     huid_str = huid_str_arg;
                 } else if (std.mem.eql(u8, second, "--deadline") or std.mem.eql(u8, second, "-d")) {
                     const dl_str = it.next() orelse {
-                        try wannasleep.bufferedPrint("Error: No deadline HUID provided for '--deadline' flag.\nRun `todo grep --help` for more information.\n");
+                        try wannasleep.bufferedPrint(io, "Error: No deadline HUID provided for '--deadline' flag.\nRun `todo grep --help` for more information.\n");
                         return;
                     };
                     deadline_str = dl_str;
@@ -446,13 +448,13 @@ pub fn main() !void {
                         }
                     }
                     if (truth_count != second.len - 1) {
-                        try wannasleep.bufferedPrintf("Error: Unknown flag {s} provided to 'grep' command.\nRun `todo grep --help` for more information.\n", .{second});
+                        try wannasleep.bufferedPrintf(io, "Error: Unknown flag {s} provided to 'grep' command.\nRun `todo grep --help` for more information.\n", .{second});
                         return;
                     }
                     // If b, not m and t
                     if (seen[3]) {
                         if (seen[1] or seen[2]) {
-                            try wannasleep.bufferedPrint("Error: Conflicting flags provided to 'grep' command.\nRun `todo grep --help` for more information.\n");
+                            try wannasleep.bufferedPrint(io, "Error: Conflicting flags provided to 'grep' command.\nRun `todo grep --help` for more information.\n");
                             return;
                         }
                     }
@@ -467,13 +469,14 @@ pub fn main() !void {
                 } else if (keyword == null) {
                     keyword = second;
                 } else {
-                    try wannasleep.bufferedPrintf("Error: Unknown flag {s} provided to 'grep' command.\nRun `todo grep --help` for more information.\n", .{second});
+                    try wannasleep.bufferedPrintf(io, "Error: Unknown flag {s} provided to 'grep' command.\nRun `todo grep --help` for more information.\n", .{second});
                     return;
                 }
                 const next_arg = it.next() orelse break;
                 second = next_arg;
             }
             try wannasleep.grepRun(
+                io,
                 allocator,
                 keyword,
                 search_tags,
@@ -487,43 +490,43 @@ pub fn main() !void {
         }
     } else if (std.mem.eql(u8, first, "cancel")) {
         const second = it.next() orelse {
-            try wannasleep.bufferedPrint("Error: No arguments provided for 'cancel' command.\nRun `todo cancel --help` for more information.\n");
+            try wannasleep.bufferedPrint(io, "Error: No arguments provided for 'cancel' command.\nRun `todo cancel --help` for more information.\n");
             return;
         };
         if (std.mem.eql(u8, second, "--help") or std.mem.eql(u8, second, "-h")) {
-            try wannasleep.cancelHelp();
+            try wannasleep.cancelHelp(io);
         } else if (std.mem.eql(u8, second, "--huid") or std.mem.eql(u8, second, "-u")) {
             const huid_str = it.next() orelse {
-                try wannasleep.bufferedPrint("Error: No HUID provided for '--huid' flag.\nRun `todo cancel --help` for more information.\n");
+                try wannasleep.bufferedPrint(io, "Error: No HUID provided for '--huid' flag.\nRun `todo cancel --help` for more information.\n");
                 return;
             };
-            try wannasleep.cancelRun(allocator, huid_str);
+            try wannasleep.cancelRun(io, allocator, huid_str);
         } else {
-            try wannasleep.cancelRun(allocator, second);
+            try wannasleep.cancelRun(io, allocator, second);
         }
     } else if (std.mem.eql(u8, first, "finish")) {
         const second = it.next() orelse {
-            try wannasleep.bufferedPrint("Error: No arguments provided for 'finish' command.\nRun `todo finish --help` for more information.\n");
+            try wannasleep.bufferedPrint(io, "Error: No arguments provided for 'finish' command.\nRun `todo finish --help` for more information.\n");
             return;
         };
         if (std.mem.eql(u8, second, "--help") or std.mem.eql(u8, second, "-h")) {
-            try wannasleep.finishHelp();
+            try wannasleep.finishHelp(io);
         } else if (std.mem.eql(u8, second, "--huid") or std.mem.eql(u8, second, "-u")) {
             const huid_str = it.next() orelse {
-                try wannasleep.bufferedPrint("Error: No HUID provided for '--huid' flag.\nRun `todo finish --help` for more information.\n");
+                try wannasleep.bufferedPrint(io, "Error: No HUID provided for '--huid' flag.\nRun `todo finish --help` for more information.\n");
                 return;
             };
-            try wannasleep.finishRun(allocator, huid_str);
+            try wannasleep.finishRun(io, allocator, huid_str);
         } else {
-            try wannasleep.finishRun(allocator, second);
+            try wannasleep.finishRun(io, allocator, second);
         }
     } else if (std.mem.eql(u8, first, "remind")) {
         var second = it.next() orelse {
-            try wannasleep.remindRun(allocator, false, false, false, null, null);
+            try wannasleep.remindRun(io, allocator, false, false, false, null, null);
             return;
         };
         if (std.mem.eql(u8, second, "--help") or std.mem.eql(u8, second, "-h")) {
-            try wannasleep.remindHelp();
+            try wannasleep.remindHelp(io);
             return;
         } else {
             // Parse flags: --huid, --tags, --deadline
@@ -557,48 +560,48 @@ pub fn main() !void {
                     show_deadline = true;
                 } else if (std.mem.eql(u8, second, "--start") or std.mem.eql(u8, second, "-s")) {
                     const sh = it.next() orelse {
-                        try wannasleep.bufferedPrint("Error: No start HUID provided for '--start' flag.\nRun `todo remind --help` for more information.\n");
+                        try wannasleep.bufferedPrint(io, "Error: No start HUID provided for '--start' flag.\nRun `todo remind --help` for more information.\n");
                         return;
                     };
                     start_huid_str = sh;
                 } else if (std.mem.eql(u8, second, "--end") or std.mem.eql(u8, second, "-e")) {
                     const eh = it.next() orelse {
-                        try wannasleep.bufferedPrint("Error: No end HUID provided for '--end' flag.\nRun `todo remind --help` for more information.\n");
+                        try wannasleep.bufferedPrint(io, "Error: No end HUID provided for '--end' flag.\nRun `todo remind --help` for more information.\n");
                         return;
                     };
                     end_huid_str = eh;
                 } else {
-                    try wannasleep.bufferedPrintf("Error: Unknown flag {s} provided to 'remind' command.\nRun `todo remind --help` for more information.", .{second});
+                    try wannasleep.bufferedPrintf(io, "Error: Unknown flag {s} provided to 'remind' command.\nRun `todo remind --help` for more information.", .{second});
                     return;
                 }
                 const next_arg = it.next() orelse break;
                 second = next_arg;
             }
-            try wannasleep.remindRun(allocator, show_huid, show_tags, show_deadline, start_huid_str, end_huid_str);
+            try wannasleep.remindRun(io, allocator, show_huid, show_tags, show_deadline, start_huid_str, end_huid_str);
         }
     } else if (std.mem.eql(u8, first, "remove")) {
         const second = it.next() orelse {
-            try wannasleep.bufferedPrint("Error: No arguments provided for 'remove' command.\nRun `todo remove --help` for more information.\n");
+            try wannasleep.bufferedPrint(io, "Error: No arguments provided for 'remove' command.\nRun `todo remove --help` for more information.\n");
             return;
         };
         if (std.mem.eql(u8, second, "--help") or std.mem.eql(u8, second, "-h")) {
-            try wannasleep.removeHelp();
+            try wannasleep.removeHelp(io);
         } else if (std.mem.eql(u8, second, "--huid") or std.mem.eql(u8, second, "-u")) {
             const huid_str = it.next() orelse {
-                try wannasleep.bufferedPrint("Error: No HUID provided for '--huid' flag.\nRun `todo remove --help` for more information.\n");
+                try wannasleep.bufferedPrint(io, "Error: No HUID provided for '--huid' flag.\nRun `todo remove --help` for more information.\n");
                 return;
             };
-            try wannasleep.removeRun(allocator, huid_str);
+            try wannasleep.removeRun(io, allocator, huid_str);
         } else {
-            try wannasleep.removeRun(allocator, second);
+            try wannasleep.removeRun(io, allocator, second);
         }
     } else if (std.mem.eql(u8, first, "defer")) {
         var second = it.next() orelse {
-            try wannasleep.bufferedPrint("Error: No arguments provided for 'defer' command.\nRun `todo defer --help` for more information.\n");
+            try wannasleep.bufferedPrint(io, "Error: No arguments provided for 'defer' command.\nRun `todo defer --help` for more information.\n");
             return;
         };
         if (std.mem.eql(u8, second, "--help") or std.mem.eql(u8, second, "-h")) {
-            try wannasleep.deferHelp();
+            try wannasleep.deferHelp(io);
         } else {
             // Parse args: --huid, time delta
             var huid_str: ?[]const u8 = null;
@@ -610,37 +613,37 @@ pub fn main() !void {
             while (true) {
                 if (std.mem.eql(u8, second, "--huid") or std.mem.eql(u8, second, "-u")) {
                     const huid_arg = it.next() orelse {
-                        try wannasleep.bufferedPrint("Error: No HUID provided for '--huid' flag.\nRun `todo defer --help` for more information.\n");
+                        try wannasleep.bufferedPrint(io, "Error: No HUID provided for '--huid' flag.\nRun `todo defer --help` for more information.\n");
                         return;
                     };
                     huid_str = huid_arg;
                 } else if (std.mem.eql(u8, second, "--weeks") or std.mem.eql(u8, second, "-w")) {
                     const weeks_str = it.next() orelse {
-                        try wannasleep.bufferedPrint("Error: No weeks value provided for '--weeks' flag.\nRun `todo defer --help` for more information.\n");
+                        try wannasleep.bufferedPrint(io, "Error: No weeks value provided for '--weeks' flag.\nRun `todo defer --help` for more information.\n");
                         return;
                     };
                     weeks = try std.fmt.parseInt(u64, weeks_str, 10);
                 } else if (std.mem.eql(u8, second, "--days") or std.mem.eql(u8, second, "-D")) {
                     const days_str = it.next() orelse {
-                        try wannasleep.bufferedPrint("Error: No days value provided for '--days' flag.\nRun `todo defer --help` for more information.\n");
+                        try wannasleep.bufferedPrint(io, "Error: No days value provided for '--days' flag.\nRun `todo defer --help` for more information.\n");
                         return;
                     };
                     days = try std.fmt.parseInt(u64, days_str, 10);
                 } else if (std.mem.eql(u8, second, "--hours") or std.mem.eql(u8, second, "-H")) {
                     const hours_str = it.next() orelse {
-                        try wannasleep.bufferedPrint("Error: No hours value provided for '--hours' flag.\nRun `todo defer --help` for more information.\n");
+                        try wannasleep.bufferedPrint(io, "Error: No hours value provided for '--hours' flag.\nRun `todo defer --help` for more information.\n");
                         return;
                     };
                     hours = try std.fmt.parseInt(u64, hours_str, 10);
                 } else if (std.mem.eql(u8, second, "--minutes") or std.mem.eql(u8, second, "-m")) {
                     const minutes_str = it.next() orelse {
-                        try wannasleep.bufferedPrint("Error: No minutes value provided for '--minutes' flag.\nRun `todo defer --help` for more information.\n");
+                        try wannasleep.bufferedPrint(io, "Error: No minutes value provided for '--minutes' flag.\nRun `todo defer --help` for more information.\n");
                         return;
                     };
                     minutes = try std.fmt.parseInt(u64, minutes_str, 10);
                 } else if (std.mem.eql(u8, second, "--seconds") or std.mem.eql(u8, second, "-S")) {
                     const seconds_str = it.next() orelse {
-                        try wannasleep.bufferedPrint("Error: No seconds value provided for '--seconds' flag.\nRun `todo defer --help` for more information.\n");
+                        try wannasleep.bufferedPrint(io, "Error: No seconds value provided for '--seconds' flag.\nRun `todo defer --help` for more information.\n");
                         return;
                     };
                     seconds = try std.fmt.parseInt(u64, seconds_str, 10);
@@ -651,14 +654,14 @@ pub fn main() !void {
                 second = next_arg;
             }
             if (huid_str == null) {
-                try wannasleep.bufferedPrint("Error: Missing required HUID for the todo item to defer.\nRun `todo defer --help` for more information.\n");
+                try wannasleep.bufferedPrint(io, "Error: Missing required HUID for the todo item to defer.\nRun `todo defer --help` for more information.\n");
                 return;
             }
-            try wannasleep.deferRun(allocator, huid_str.?, weeks, days, hours, minutes, seconds);
+            try wannasleep.deferRun(io, allocator, huid_str.?, weeks, days, hours, minutes, seconds);
         }
     } else if (std.mem.eql(u8, first, "author")) {
-        try wannasleep.author(); // Why would you put any other arguments after author?
+        try wannasleep.author(io); // Why would you put any other arguments after author?
     } else {
-        try wannasleep.unknownCommand(first);
+        try wannasleep.unknownCommand(io, first);
     }
 }
