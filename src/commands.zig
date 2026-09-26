@@ -6,8 +6,8 @@ const TODOPrintOptions = @import("todo.zig").TODOPrintOptions;
 const storage = @import("storage.zig");
 const out = @import("io.zig");
 
-const build_version = "0.1.2";
-const build_version_detail = "-nightly-2026-01-15";
+const build_version = "0.1.3";
+const build_version_detail = "-release";
 
 pub fn init(io: std.Io) !void {
     const cwd = std.Io.Dir.cwd();
